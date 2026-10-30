@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-arabic), "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+
+  /* Brand: forest -> emerald */
+  --color-brand-50: #edfaf3;
+  --color-brand-100: #d3f3e1;
+  --color-brand-200: #a9e6c7;
+  --color-brand-300: #72d2a6;
+  --color-brand-400: #3cb782;
+  --color-brand-500: #1c9b68;
+  --color-brand-600: #117d54;
+  --color-brand-700: #0f6446;
+  --color-brand-800: #0f4f39;
+  --color-brand-900: #0d4130;
+  --color-brand-950: #04241a;
+
+  /* Accent: lime */
+  --color-accent-300: #bef264;
+  --color-accent-400: #a3e635;
+  --color-accent-500: #84cc16;
+  --color-accent-600: #65a30d;
+
+  --color-surface: #f5f7f5;
+  --color-ink: #0b1f18;
+  --color-ink-muted: #5c7169;
+  --color-line: #e2e8e4;
+}
+
+@layer base {
+  html {
+    text-rendering: optimizeLegibility;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-surface);
+    color: var(--color-ink);
+  }
+
+  ::selection {
+    background-color: var(--color-brand-200);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 2px;
+  }
+}

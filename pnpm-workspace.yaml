@@ -1,0 +1,7 @@
+packages:
+  - "apps/*"
+
+# unrs-resolver (used by eslint-plugin-import) runs a postinstall build script.
+# Approved explicitly so installs stay reproducible and non-interactive.
+allowBuilds:
+  unrs-resolver: true
