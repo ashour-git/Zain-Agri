@@ -2,8 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Sans_Arabic } from "next/font/google";
 import type { ReactNode } from "react";
 
-import { Sidebar } from "@/components/shell/sidebar";
-import { Header } from "@/components/shell/header";
+import { AuthProvider } from "@/lib/auth-provider";
 
 import "./globals.css";
 
@@ -31,16 +30,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ar" dir="rtl" className={arabic.variable}>
       <body className="min-h-dvh font-sans antialiased">
-        <div className="flex min-h-dvh">
-          <Sidebar />
-          <div className="flex min-w-0 flex-1 flex-col">
-            <Header title="نظرة عامة" subtitle="ملخص أداء المتجر" />
-            <main className="flex-1">{children}</main>
-            <footer className="border-t border-line px-5 py-4 text-[11px] text-ink-muted sm:px-8">
-              ZAIN AGRI — أساس Sprint 01. الأرقام ستظهر بعد ربط وحدات المخزون والمبيعات.
-            </footer>
-          </div>
-        </div>
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );

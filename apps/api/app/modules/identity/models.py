@@ -21,11 +21,18 @@ class TenantStatus(enum.StrEnum):
 
 
 class MembershipRole(enum.StrEnum):
-    """Provisional RBAC vocabulary. Confirm the real roles before Sprint 02."""
+    """Tenant-scoped role. Permissions are derived in app.modules.authorization."""
 
     OWNER = "owner"
-    ADMIN = "admin"
-    MEMBER = "member"
+    MANAGER = "manager"
+    CASHIER = "cashier"
+    INVENTORY_MANAGER = "inventory_manager"
+
+
+class MembershipStatus(enum.StrEnum):
+    ACTIVE = "active"
+    INVITED = "invited"
+    SUSPENDED = "suspended"
 
 
 class Tenant(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -57,6 +64,9 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     full_name: Mapped[str] = mapped_column(String(200), nullable=False)
     is_active: Mapped[bool] = mapped_column(nullable=False, default=True, server_default="true")
+    email_verified_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     memberships: Mapped[list["Membership"]] = relationship(
@@ -82,8 +92,19 @@ class Membership(UUIDPrimaryKeyMixin, Base):
             values_callable=lambda enum_cls: [member.value for member in enum_cls],
         ),
         nullable=False,
-        default=MembershipRole.MEMBER,
-        server_default=MembershipRole.MEMBER.value,
+        default=MembershipRole.CASHIER,
+        server_default=MembershipRole.CASHIER.value,
+    )
+    status: Mapped[MembershipStatus] = mapped_column(
+        Enum(
+            MembershipStatus,
+            name="membership_status",
+            native_enum=True,
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+        ),
+        nullable=False,
+        default=MembershipStatus.ACTIVE,
+        server_default=MembershipStatus.ACTIVE.value,
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

@@ -13,6 +13,9 @@ _EXTRA_FIELDS = (
     "status_code",
     "duration_ms",
     "tenant_id",
+    "user_id",
+    "event",
+    "ip",
 )
 
 

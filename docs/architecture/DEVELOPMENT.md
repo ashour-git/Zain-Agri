@@ -101,8 +101,8 @@ pnpm --filter web dev
 ```
 
 **Do not use `uv run uvicorn app.main:app` directly on Windows.** psycopg's async
-driver rejects the default Proactor event loop; `run.py` installs the selector
-policy before uvicorn creates the loop. See ADR-007.
+driver rejects the default Proactor event loop; `run.py` passes uvicorn an
+explicit selector-loop factory. See ADR-007.
 
 For a production-shaped frontend check:
 
@@ -165,10 +165,10 @@ Run these before claiming any change works.
 ```powershell
 # Backend
 cd apps/api
-uv run pytest -q                  # 9 passed at Sprint 01
+uv run pytest -q                  # 85 passed at Sprint 02
 uv run ruff check .               # All checks passed
 uv run ruff format --check .
-uv run mypy app                   # Success: no issues found in 18 source files
+uv run mypy app                   # Success: no issues found in 32 source files
 
 # Frontend
 pnpm --filter web typecheck
@@ -195,37 +195,41 @@ every session — they never use `Base.metadata.create_all()`.
 ```
 apps/api
 ├── app/
-│   ├── core/                 config, logging, errors, middleware
+│   ├── core/                 config, logging, errors, middleware, csrf, ratelimit
 │   ├── infrastructure/db/    base, session (lazy engine)
 │   ├── modules/
-│   │   ├── health/           router
+│   │   ├── health/           liveness + readiness
 │   │   ├── identity/         Tenant, User, Membership
+│   │   ├── auth/             passwords, JWT, refresh sessions, auth routes
+│   │   ├── authorization/    role → permission policy
+│   │   ├── tenants/          workspace settings, member listing
 │   │   └── tenancy/          set_tenant_context, current_tenant_id
 │   └── main.py               create_app()
 ├── alembic/
 │   ├── env.py
-│   └── versions/0001_identity_foundation.py
-├── tests/                    conftest, health, tenant isolation
+│   └── versions/             0001_identity, 0002_auth, 0003_user_tenants
+├── tests/                    auth, RBAC, tenant isolation, health
 ├── run.py                    Windows-safe uvicorn entry point
 └── pyproject.toml            deps, ruff, mypy, pytest
 
 apps/web/src
-├── app/                      layout, page, loading, error, not-found, globals.css
-├── components/               brand, shell/, dashboard/, ui/
-└── lib/utils.ts              cn()
+├── app/                      (auth)/, (app)/, select-tenant, error/loading/not-found
+├── components/               auth/, brand, shell/, dashboard/, ui/
+└── lib/                      api.ts, auth-provider.tsx, types.ts, utils.ts
 ```
 
 ## 8. Troubleshooting
 
 ### `psycopg cannot use the 'ProactorEventLoop'`
 
-You started uvicorn directly. Use `uv run python run.py`. For scripts, install
-the policy first:
+You started uvicorn directly. Use `uv run python run.py`. uvicorn 0.54 creates
+the loop through an explicit factory, so the global event-loop policy is no
+longer enough; `run.py` passes `loop="run:selector_loop_factory"`, which builds
+an `asyncio.SelectorEventLoop`. For scripts, do the same:
 
 ```python
-import asyncio, sys
-if sys.platform == "win32":
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+import asyncio, selectors
+asyncio.run(main(), loop_factory=lambda: asyncio.SelectorEventLoop(selectors.SelectSelector()))
 ```
 
 ### PostgreSQL will not start / `Access is denied` / stale `postmaster.pid`

@@ -21,15 +21,21 @@ class AppError(Exception):
     status_code: int = status.HTTP_400_BAD_REQUEST
     code: str = "bad_request"
 
-    def __init__(self, message: str, *, details: Any = None) -> None:
+    def __init__(
+        self, message: str, *, details: Any = None, headers: dict[str, str] | None = None
+    ) -> None:
         super().__init__(message)
         self.message = message
         self.details = details
+        self.headers = headers
 
 
-class NotFoundError(AppError):
-    status_code = status.HTTP_404_NOT_FOUND
-    code = "not_found"
+class UnauthorizedError(AppError):
+    status_code = status.HTTP_401_UNAUTHORIZED
+    code = "unauthorized"
+
+    def __init__(self, message: str = "Authentication required") -> None:
+        super().__init__(message, headers={"WWW-Authenticate": "Bearer"})
 
 
 class ForbiddenError(AppError):
@@ -37,12 +43,33 @@ class ForbiddenError(AppError):
     code = "forbidden"
 
 
-def _body(code: str, message: str, request: Request, details: Any = None) -> dict[str, Any]:
+class NotFoundError(AppError):
+    status_code = status.HTTP_404_NOT_FOUND
+    code = "not_found"
+
+
+class ConflictError(AppError):
+    status_code = status.HTTP_409_CONFLICT
+    code = "conflict"
+
+
+class TooManyRequestsError(AppError):
+    status_code = status.HTTP_429_TOO_MANY_REQUESTS
+    code = "rate_limited"
+
+    def __init__(self, message: str, *, retry_after: int) -> None:
+        super().__init__(message, headers={"Retry-After": str(retry_after)})
+
+
+def error_body(
+    code: str, message: str, request: Request | None, details: Any = None
+) -> dict[str, Any]:
+    """The single error envelope used by every handler and middleware."""
     body: dict[str, Any] = {
         "error": {
             "code": code,
             "message": message,
-            "request_id": getattr(request.state, "request_id", None),
+            "request_id": getattr(request.state, "request_id", None) if request else None,
         }
     }
     if details is not None:
@@ -55,14 +82,15 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def _app_error(request: Request, exc: AppError) -> JSONResponse:
         return JSONResponse(
             status_code=exc.status_code,
-            content=_body(exc.code, exc.message, request, exc.details),
+            content=error_body(exc.code, exc.message, request, exc.details),
+            headers=exc.headers,
         )
 
     @app.exception_handler(RequestValidationError)
     async def _validation_error(request: Request, exc: RequestValidationError) -> JSONResponse:
         return JSONResponse(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            content=_body(
+            content=error_body(
                 "validation_error",
                 "Request validation failed",
                 request,
@@ -78,7 +106,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def _http_error(request: Request, exc: StarletteHTTPException) -> JSONResponse:
         return JSONResponse(
             status_code=exc.status_code,
-            content=_body("http_error", str(exc.detail), request),
+            content=error_body("http_error", str(exc.detail), request),
         )
 
     @app.exception_handler(Exception)
@@ -86,5 +114,5 @@ def register_exception_handlers(app: FastAPI) -> None:
         logger.exception("unhandled_exception", extra={"path": request.url.path})
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content=_body("internal_error", "Internal server error", request),
+            content=error_body("internal_error", "Internal server error", request),
         )

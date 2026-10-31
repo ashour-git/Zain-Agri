@@ -8,11 +8,14 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # .../apps/api/app/core/config.py -> repository root
 REPO_ROOT = Path(__file__).resolve().parents[4]
+
+# Deliberately public: the application refuses to start with it in production.
+_DEV_JWT_SECRET = "dev-only-insecure-jwt-secret-change-before-deploy"  # noqa: S105
 
 
 class Settings(BaseSettings):
@@ -41,6 +44,33 @@ class Settings(BaseSettings):
     # Comma separated, explicit. No wildcards in production.
     cors_origins: str = ""
 
+    # --- Authentication ----------------------------------------------------
+    jwt_secret_key: SecretStr = SecretStr(_DEV_JWT_SECRET)
+    jwt_algorithm: Literal["HS256"] = "HS256"
+    jwt_issuer: str = "zain-agri"
+    jwt_audience: str = "zain-agri-api"
+
+    access_token_ttl_minutes: int = 15
+    refresh_token_ttl_days: int = 30
+
+    # Refresh token cookie. HttpOnly, path-scoped to the auth routes.
+    refresh_cookie_name: str = "zain_refresh"
+    refresh_cookie_path: str = "/api/v1/auth"
+    refresh_cookie_secure: bool = False
+
+    # Blocks login until an email is verified. There is no email delivery yet,
+    # so this must stay False until one is configured. See AUTHENTICATION.md.
+    require_email_verification: bool = False
+
+    # Simple in-process throttling. Per worker, not shared. See AUTHENTICATION.md.
+    auth_rate_limit_attempts: int = 10
+    auth_rate_limit_window_seconds: int = 300
+
+    # Argon2id parameters. Memory cost is in KiB.
+    argon2_time_cost: int = 3
+    argon2_memory_cost: int = 65536
+    argon2_parallelism: int = 4
+
     @property
     def is_production(self) -> bool:
         return self.environment == "production"
@@ -52,6 +82,20 @@ class Settings(BaseSettings):
     @property
     def alembic_url(self) -> str:
         return self.migration_database_url or self.database_url
+
+    @model_validator(mode="after")
+    def _validate_security_posture(self) -> "Settings":
+        secret = self.jwt_secret_key.get_secret_value()
+        if self.is_production:
+            if secret == _DEV_JWT_SECRET or len(secret) < 32:
+                raise ValueError(
+                    "JWT_SECRET_KEY must be set to at least 32 characters in production"
+                )
+            if not self.refresh_cookie_secure:
+                raise ValueError("REFRESH_COOKIE_SECURE must be true in production")
+            if not self.cors_origin_list:
+                raise ValueError("CORS_ORIGINS must list explicit origins in production")
+        return self
 
 
 @lru_cache

@@ -1,7 +1,7 @@
 # ZAIN AGRI — Architecture Decisions
 
-Status: Sprint 01
-Last updated: 2026-10-30
+Status: Sprint 02
+Last updated: 2026-10-31
 
 > One record per decision that would be expensive to reverse, or that a new
 > engineer would otherwise question. Rejected options are listed because "we
@@ -180,11 +180,16 @@ they do not go through `run.py`.
 **Consequences.** The documented start command is `uv run python run.py`, not
 `uvicorn ...`. A Linux deployment needs none of this; the guard is `win32`-only.
 
+*Sprint 02 update:* uvicorn 0.54 stopped honouring the global event-loop policy
+and builds its loop through `asyncio.run(..., loop_factory=...)`. `run.py` now
+passes `loop="run:selector_loop_factory"` so the selector loop is still used;
+setting the policy alone silently yields `503` readiness errors on Windows.
+
 ---
 
 ## ADR-008 — Opaque server-side sessions, not JWT
 
-**Status:** Proposed (implementation in Sprint 02) · **Date:** 2026-10-30
+**Status:** Superseded by ADR-016 · **Date:** 2026-10-30
 
 **Context.** The system will run a point of sale, where a fired cashier must lose
 access immediately.
@@ -271,7 +276,11 @@ Recharts.
 
 **Decision.** Installed now: Next, React, Tailwind v4, `clsx`, `tailwind-merge`,
 `class-variance-authority`, `lucide-react`. **Not** installed: shadcn/ui CLI
-output, React Hook Form, Zod, TanStack Query, Recharts, `next-intl`.
+output, TanStack Query, Recharts, `next-intl`.
+
+*Sprint 02 update:* React Hook Form, Zod and `@hookform/resolvers` were installed
+when the first real forms (login, register, workspace creation) landed, which is
+exactly the trigger this ADR defined.
 
 **Why.** Sprint 01 has no forms, no client data fetching and no charts. Each of
 those libraries would sit unused, and unused dependencies still get audited and
@@ -349,3 +358,80 @@ unreviewed dependency change. The venv is now CPython 3.13.7.
 
 **Consequences.** Upgrading to 3.14 becomes a deliberate change with a lockfile
 refresh and a test run.
+
+---
+
+## ADR-016 — JWT access tokens + rotating opaque refresh tokens
+
+**Status:** Accepted · **Date:** 2026-10-31 · **Supersedes:** ADR-008
+
+**Context.** Sprint 02 requires access-token authentication and refresh-token
+rotation. ADR-008 proposed opaque sessions only, on the argument that a JWT
+cannot be revoked before expiry without a denylist.
+
+**Decision.** A short-lived HS256 JWT (15 minutes) is the access credential,
+sent as `Authorization: Bearer` and held in memory by the web client. The refresh
+credential is an opaque random token, stored only as a SHA-256 digest, delivered
+in an `HttpOnly`, `SameSite=Lax` cookie. Every access token carries a `sid` claim
+naming its `refresh_sessions` row, and that row is checked on every request.
+
+**Why.** The brief mandates access tokens; the revocation concern that drove
+ADR-008 is answered by the per-request session check. The JWT therefore buys a
+standard credential format and cheap claim parsing, while revocation stays
+immediate. Putting the refresh token in an HttpOnly cookie and the access token
+in memory means JavaScript can never read either long-lived secret.
+
+**Consequences.** The JWT does not save a database round trip — the session check
+is deliberate. Roles and tenant ids in the token are advisory only; authorisation
+reloads membership from the database. ADR-008's sessions table survives as
+`refresh_sessions`, with rotation, families and reuse detection layered on top.
+
+---
+
+## ADR-017 — Re-apply tenant context after every commit
+
+**Status:** Accepted · **Date:** 2026-10-31
+
+**Context.** `set_config('app.tenant_id', :id, true)` is transaction-local. A
+service that commits mid-request (login, onboarding) would silently start its
+next transaction with no tenant context, and RLS would return zero rows instead
+of raising.
+
+**Decision.** `set_tenant_context()` records the tenant id in `session.info` and
+also sets it in the current transaction. A SQLAlchemy `after_begin` listener on
+`Session` re-applies the setting for every subsequent transaction on that bound
+session.
+
+**Why.** The alternative — calling `set_tenant_context()` manually after every
+commit — is exactly the kind of step a reviewer cannot verify and a refactor can
+drop. Centralising it in the session lifecycle makes "bound session" mean what it
+says.
+
+**Consequences.** The hook only acts on sessions explicitly bound through
+`set_tenant_context()`; a fresh pooled session remains unbound and fails closed.
+Long-lived background jobs must still open one transaction per tenant.
+
+---
+
+## ADR-018 — One `SECURITY DEFINER` function for pre-tenant membership lookup
+
+**Status:** Accepted · **Date:** 2026-10-31
+
+**Context.** Login and tenant selection must list a user's workspaces while
+`tenants` and `memberships` are protected by RLS and no tenant context exists yet.
+
+**Decision.** Add `app_user_tenants(p_user_id uuid)`, `LANGUAGE sql`, `STABLE`,
+`SECURITY DEFINER`, `SET search_path = public, pg_temp`, returning only the
+caller-supplied user's memberships. Revoke `EXECUTE` from `PUBLIC`; grant it to
+`zain_app` in `grants.sql`.
+
+**Why.** The alternatives were worse: a permissive RLS branch for "my own
+memberships" would weaken every query on the table; reading as the owner role
+would put a superuser path in the request process; duplicating membership data
+would create a second source of truth.
+
+**Consequences.** There is now exactly one function the runtime role may execute,
+and it must remain read-only. Any SQL injection in the app could call it with
+another user id and enumerate workspace names — accepted because all queries are
+parameter-bound, and documented in `TENANT_ISOLATION.md`. `PUBLIC` execute and a
+pinned `search_path` are tested.

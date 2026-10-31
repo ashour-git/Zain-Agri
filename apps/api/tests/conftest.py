@@ -6,7 +6,7 @@ and re-migrated once per session, so assertions never see leftover state.
 
 import os
 import sys
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 
 import pytest
@@ -94,10 +94,36 @@ async def db_session() -> AsyncIterator[AsyncSession]:
         await session.rollback()
 
 
+@pytest.fixture(autouse=True)
+def reset_rate_limiter() -> Iterator[None]:
+    """The limiter is a process-wide singleton shared by every test."""
+    from app.core.ratelimit import auth_limiter
+
+    auth_limiter.reset()
+    yield
+    auth_limiter.reset()
+
+
 @pytest_asyncio.fixture
 async def client() -> AsyncIterator[AsyncClient]:
     from app.main import create_app
 
+    # A real browser always sends Origin on a state-changing request, and the
+    # CSRF guard requires it once the refresh cookie is present.
     transport = ASGITransport(app=create_app())
-    async with AsyncClient(transport=transport, base_url="http://test") as http_client:
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://localhost:3000",
+        headers={"Origin": "http://localhost:3000"},
+    ) as http_client:
+        yield http_client
+
+
+@pytest_asyncio.fixture
+async def plain_client() -> AsyncIterator[AsyncClient]:
+    """No Origin header at all: a non-browser caller, or a stripped request."""
+    from app.main import create_app
+
+    transport = ASGITransport(app=create_app())
+    async with AsyncClient(transport=transport, base_url="http://localhost:3000") as http_client:
         yield http_client

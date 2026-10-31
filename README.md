@@ -1,6 +1,6 @@
 # ZAIN AGRI
 
-Multi-tenant SaaS for agricultural retail businesses in Egypt — fertilizers,
+Multi-tenant SaaS for agricultural retail businesses in Egypt - fertilizers,
 pesticides, seeds, agricultural chemicals and farming supplies.
 
 Arabic-first, RTL, modular monolith.
@@ -10,7 +10,7 @@ Arabic-first, RTL, modular monolith.
 ```
 apps/web        Next.js 16 (App Router) + Tailwind v4, Arabic RTL shell
 apps/api        FastAPI + SQLAlchemy 2 + Alembic
-docs/           Architecture, decisions, open questions
+docs/           Architecture, security, decisions, open questions
 infrastructure/ Database bootstrap SQL, future deployment config
 scripts/        Local development helpers (PowerShell)
 ```
@@ -28,16 +28,16 @@ scripts/        Local development helpers (PowerShell)
 ## Quick start
 
 ```powershell
-# 1. Local database — isolated cluster on port 5433, no Docker, no admin rights
+# 1. Local database - isolated cluster on port 5433, no Docker, no admin rights
 ./scripts/db-start.ps1
 ./scripts/db-init.ps1        # creates roles + databases, runs migrations, grants
 
-# 2. Backend — separate terminal
+# 2. Backend - separate terminal
 cd apps/api
 uv sync
 uv run python run.py         # http://127.0.0.1:8000
 
-# 3. Frontend — separate terminal
+# 3. Frontend - separate terminal
 pnpm install
 pnpm --filter web dev        # http://localhost:3000
 ```
@@ -46,8 +46,9 @@ pnpm --filter web dev        # http://localhost:3000
 needed after pulling new revisions.
 
 `uv run uvicorn app.main:app` will **not** work on Windows: psycopg's async driver
-cannot use the default Proactor event loop. `run.py` installs the selector policy
-first, which is why it is the documented entry point.
+cannot use the default Proactor event loop. uvicorn 0.54 builds its loop through
+an explicit factory, so `run.py` passes a selector-loop factory — that is why it
+is the documented entry point.
 
 Open <http://localhost:3000>. API docs at <http://localhost:8000/docs>.
 
@@ -77,7 +78,15 @@ pnpm --filter web build
 - [Product requirements](docs/architecture/PRODUCT_REQUIREMENTS.md)
 - [Open questions](docs/architecture/OPEN_QUESTIONS.md)
 
+## Security
+
+- [Authentication](docs/security/AUTHENTICATION.md)
+- [Tenant isolation](docs/security/TENANT_ISOLATION.md)
+- [RBAC](docs/security/RBAC.md)
+
 ## Status
 
-Sprint 01 — foundation only. Identity/tenancy schema, RLS, health endpoints, and
-the Arabic RTL shell exist. No business modules are implemented yet.
+Sprint 02 — authentication and multi-tenant security. The identity/tenancy
+schema, Row Level Security, JWT access tokens with rotating refresh sessions,
+RBAC, tenant onboarding, and the Arabic auth UI (login, register, workspace
+selection, security settings) exist. No business modules are implemented yet.

@@ -1,7 +1,7 @@
 # ZAIN AGRI — System Architecture
 
-Status: Sprint 01
-Last updated: 2026-10-30
+Status: Sprint 02
+Last updated: 2026-10-31
 
 ---
 
@@ -67,6 +67,8 @@ flowchart TB
             log["logging.py<br/>JSON logs"]
             err["errors.py<br/>error envelope"]
             mw["middleware.py<br/>request id · access log"]
+            csrf["csrf.py<br/>origin guard"]
+            rl["ratelimit.py<br/>auth throttle"]
         end
         subgraph infra["infrastructure/"]
             db["db/session.py<br/>engine · sessions"]
@@ -75,6 +77,9 @@ flowchart TB
         subgraph modules["modules/"]
             health["health/<br/>liveness · readiness"]
             identity["identity/<br/>tenant · user · membership"]
+            auth["auth/<br/>tokens · sessions · onboarding"]
+            authz["authorization/<br/>permission policy"]
+            tenants["tenants/<br/>workspace settings · members"]
             tenancy["tenancy/<br/>tenant context"]
             future_mod["products/ inventory/ sales/ …<br/>(not built)"]
         end
@@ -91,13 +96,16 @@ flowchart TB
 
 | Module | Owns | May depend on |
 |---|---|---|
-| `core` | Configuration, logging, errors, middleware | nothing |
+| `core` | Configuration, logging, errors, middleware, CSRF, rate limiting | nothing |
 | `infrastructure` | Engine, sessions, declarative base | `core` |
-| `identity` | Tenant, User, Membership | `core`, `infrastructure` |
+| `identity` | Tenant, User, Membership models | `core`, `infrastructure` |
+| `auth` | Passwords, JWTs, refresh sessions, auth endpoints, tenant onboarding | `core`, `infrastructure`, `identity`, `authorization`, `tenancy` |
+| `authorization` | Permission vocabulary and role policy table | `identity` (role enum) |
+| `tenants` | Workspace settings, member listing | `auth` dependencies, `authorization`, `identity` |
 | `tenancy` | Tenant context propagation | `core`, `infrastructure` |
-| future `products` | Product, Category, Unit | `identity` (tenant id) |
-| future `inventory` | Movement ledger, batches | `products`, `identity` |
-| future `sales` | Invoice, line, payment | `products`, `inventory`, `identity` |
+| future `products` | Product, Category, Unit | `identity` (tenant id), `auth` (current tenant) |
+| future `inventory` | Movement ledger, batches | `products`, `identity`, `auth` |
+| future `sales` | Invoice, line, payment | `products`, `inventory`, `identity`, `auth` |
 
 **Rule:** a module never imports another module's ORM models to mutate them.
 It calls that module's public functions.
@@ -151,44 +159,73 @@ flowchart TB
    A superuser would silently ignore every policy, so a test asserts this.
 4. **Transaction-local setting.** `set_config(..., true)` is discarded at
    commit, so a pooled connection cannot leak one tenant's context into the
-   next request.
+   next request. A session-level `after_begin` hook re-applies the context for
+   each later transaction on a bound session.
 5. **Schema ownership.** Migrations run as the owner role, the app runs as the
    runtime role. The app cannot alter its own policies.
+
+**Session binding.** An access token's `tid` claim is advisory. The authoritative
+binding is `refresh_sessions.tenant_id` for the `sid` in the token, re-validated
+against a live, active membership on every request. Switching workspace is a
+refresh-token rotation, never a client-supplied header.
+
+**One audited exception.** Before a workspace is chosen there is no RLS context
+to read `memberships` with, so login needs to know which workspaces a user may
+enter. A narrow `SECURITY DEFINER` function, `app_user_tenants(p_user_id)`,
+answers exactly that question, with `search_path` pinned and `EXECUTE` revoked
+from `PUBLIC`. It is read-only and returns only that user's rows. See
+`docs/security/TENANT_ISOLATION.md` §4.
 
 `users` is intentionally **not** tenant-scoped: one person may belong to several
 tenants. Access is mediated by `memberships`. This is documented in
 `OPEN_QUESTIONS.md` because it is the least settled part of the identity model.
 
-## 6. Authentication and authorisation — direction
+## 6. Authentication and authorisation
 
-Not implemented in Sprint 01. The intended shape:
+Implemented in Sprint 02. Full detail: `docs/security/AUTHENTICATION.md`,
+`docs/security/RBAC.md`, `docs/security/TENANT_ISOLATION.md`.
 
 ```mermaid
 sequenceDiagram
     participant U as User
     participant W as Web app
     participant A as API
-    participant S as sessions table
+    participant P as PostgreSQL
 
     U->>W: email + password
-    W->>A: POST /auth/login
-    A->>A: verify Argon2id hash
-    A->>S: create session (id, user, tenant, expiry)
-    A-->>W: Set-Cookie: httpOnly, Secure, SameSite=Lax
-    W->>A: subsequent requests (cookie)
-    A->>S: validate session, load tenant
-    A-->>W: response
+    W->>A: POST /api/v1/auth/login
+    A->>P: load user, verify Argon2id hash
+    A->>P: insert refresh_sessions (SHA-256 digest)
+    A-->>W: access_token (JSON) + Set-Cookie zain_refresh (HttpOnly)
+    W->>A: bearer access token
+    A->>P: check session by sid, re-read membership + tenant status
+    A->>P: set_config('app.tenant_id', …)
+    A-->>W: tenant-scoped response
+    W->>A: POST /auth/refresh (cookie only)
+    A->>P: rotate session, revoke predecessor
+    A-->>W: new access token + rotated cookie
 ```
 
-Choices already made:
+Choices:
 
-- Opaque server-side sessions, not JWTs — revocation must be immediate for a
-  point-of-sale system.
-- `httpOnly` cookies, never `localStorage` — no token readable by JavaScript.
-- Argon2id password hashing.
-
-Open: whether one user can switch tenants within a session, and how the first
-tenant user is provisioned. Both are in `OPEN_QUESTIONS.md`.
+- **JWT access tokens, 15 minutes, HS256**, held in memory by the client. They
+  are checked against `refresh_sessions` on every request, so revocation is
+  immediate. ADR-008 (opaque sessions only) is superseded by ADR-016.
+- **Opaque refresh tokens, rotated on every use**, stored only as SHA-256
+  digests, delivered in an `HttpOnly`, `SameSite=Lax`, `Secure` cookie scoped to
+  `/api/v1/auth`. Reuse of a rotated token revokes the whole family.
+- **Argon2id** password hashing with configurable cost; generic
+  `Invalid email or password` for every failure mode.
+- **Central permission policy.** Roles are tenant-scoped; endpoints declare a
+  permission, never compare roles. The token's `rol` claim is advisory.
+- **Tenant selection is server-side.** Multi-workspace users receive
+  `requires_tenant_selection: true`, then rotate the refresh token with an
+  explicit `tenant_id` that must match an active membership.
+- **Onboarding is atomic.** Register → create tenant → `OWNER` membership →
+  session re-bound, all in one transaction, with a unique slug.
+- **CSRF.** `SameSite=Lax` plus an origin guard on unsafe requests carrying the
+  refresh cookie.
+- **Rate limiting** on login/register/refresh (in-process; documented limit).
 
 ## 7. Database strategy
 
@@ -263,19 +300,39 @@ Deployment specifics wait for real requirements — see `OPEN_QUESTIONS.md`.
 ```
 apps/web/src
 ├── app/
-│   ├── layout.tsx      html lang=ar dir=rtl, font, shell
-│   ├── page.tsx        dashboard
-│   ├── loading.tsx     skeleton
-│   ├── error.tsx       recoverable error state
-│   ├── not-found.tsx   404
-│   └── globals.css     design tokens (@theme)
+│   ├── layout.tsx           html lang=ar dir=rtl, font, AuthProvider
+│   ├── (auth)/
+│   │   ├── layout.tsx       dark brand canvas, redirect-if-authenticated
+│   │   ├── login/page.tsx
+│   │   └── register/page.tsx
+│   ├── (app)/
+│   │   ├── layout.tsx       AuthGuard requireTenant + AppShell
+│   │   ├── page.tsx         dashboard
+│   │   └── settings/security/page.tsx
+│   ├── select-tenant/page.tsx
+│   ├── loading.tsx, error.tsx, not-found.tsx
+│   └── globals.css          design tokens (@theme)
 ├── components/
-│   ├── brand.tsx       mark + wordmark
-│   ├── shell/          sidebar, header
-│   ├── dashboard/      stat card
-│   └── ui/             card, badge
-└── lib/utils.ts        cn()
+│   ├── auth/auth-guard.tsx  client-side navigation guard
+│   ├── shell/               sidebar, header, app shell
+│   ├── dashboard/           stat card
+│   └── ui/                  card, badge, field
+└── lib/
+    ├── api.ts               in-memory access token, silent refresh
+    ├── auth-provider.tsx    session state and auth actions
+    ├── types.ts             API contracts + Arabic labels
+    └── utils.ts             cn()
 ```
+
+**Token handling in the browser.** The access token lives in a module-level
+variable. The refresh token is an `HttpOnly` cookie the client cannot read; on a
+`401` the API client rotates it once (deduplicated across concurrent requests)
+and replays the request. No token is ever written to `localStorage`,
+`sessionStorage`, IndexedDB or a readable cookie.
+
+**Route protection is a UX layer.** `AuthGuard` prevents flashing data and sends
+unauthenticated visitors to `/login`. Every request is authorised again by the
+API, which derives the workspace from the session — not from the URL.
 
 **Design tokens live in CSS, not in a JS config.** Tailwind v4 reads `@theme`,
 so the palette is one source of truth (`--color-brand-*`, `--color-accent-*`,
@@ -289,8 +346,12 @@ components work in both directions without a second theme.
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| `users` is global, not tenant-scoped | A bug could expose user records across tenants | Mediate all access through membership checks; revisit in Sprint 02 |
-| Tenant context must be set per transaction | A missed call fails closed (no rows) rather than leaking | Fail-closed policies + isolation tests in CI |
-| Enums are provisional | Role vocabulary may change | New migration; enums are cheap to extend |
-| No audit log yet | Mutations are unattributable | Audit table scheduled with sales/finance |
+| `users` is global, not tenant-scoped | A bug could expose user records across tenants | All user access is mediated by a membership check; listed in `TENANT_ISOLATION.md` |
+| `app_user_tenants` is executable by the runtime role for any user id | SQL injection could enumerate memberships | Parameter binding everywhere; function is read-only, `search_path` pinned, `PUBLIC` revoked |
+| Tenant context must be set per transaction | A missed call fails closed (no rows) rather than leaking | Fail-closed policies + `after_begin` re-apply + isolation tests |
+| Access-token validation hits the database on every request | A hot-path lookup | One indexed PK read; intentional to keep revocation immediate |
+| Rate limiting is per worker | A distributed brute force gets N × the limit | Documented; shared store is a production requirement |
+| No audit log yet | Security events have logs, not a queryable trail | Structured `zain.security` events; audit table scheduled with finance |
+| Future tenant tables may ship without RLS | A new table silently escapes the boundary | Review rule: every `tenant_id` table ships with policies in the same migration |
+| No email delivery | Password reset and verification are unavailable | `REQUIRE_EMAIL_VERIFICATION=false`; production requirement documented |
 | Windows dev requires selector event loop | Confusing "works on Linux" failures | Encoded in `run.py` and documented |
