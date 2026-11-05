@@ -13,8 +13,11 @@ from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging
 from app.core.middleware import RequestContextMiddleware
 from app.infrastructure.db.session import dispose_engine
+from app.modules.audit.router import router as audit_router
 from app.modules.auth.router import router as auth_router
+from app.modules.catalog.router import router as catalog_router
 from app.modules.health.router import router as health_router
+from app.modules.inventory.router import router as inventory_router
 from app.modules.tenants.router import router as tenants_router
 
 logger = logging.getLogger(__name__)
@@ -60,6 +63,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health_router)
     app.include_router(auth_router)
     app.include_router(tenants_router)
+    app.include_router(catalog_router)
+    app.include_router(inventory_router)
+    app.include_router(audit_router)
     return app
 
 

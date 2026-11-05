@@ -75,18 +75,28 @@ pnpm --filter web build
 - [System architecture](docs/architecture/SYSTEM_ARCHITECTURE.md)
 - [Database design](docs/architecture/DATABASE_DESIGN.md)
 - [Architecture decisions](docs/architecture/ARCHITECTURE_DECISIONS.md)
+- [Inventory ledger](docs/architecture/INVENTORY_LEDGER.md)
 - [Product requirements](docs/architecture/PRODUCT_REQUIREMENTS.md)
 - [Open questions](docs/architecture/OPEN_QUESTIONS.md)
+
+## Modules
+
+- [Product catalog](docs/modules/PRODUCT_CATALOG.md)
+- [Inventory](docs/modules/INVENTORY.md)
 
 ## Security
 
 - [Authentication](docs/security/AUTHENTICATION.md)
 - [Tenant isolation](docs/security/TENANT_ISOLATION.md)
 - [RBAC](docs/security/RBAC.md)
+- [Audit logging](docs/security/AUDIT_LOGGING.md)
 
 ## Status
 
-Sprint 02 — authentication and multi-tenant security. The identity/tenancy
-schema, Row Level Security, JWT access tokens with rotating refresh sessions,
-RBAC, tenant onboarding, and the Arabic auth UI (login, register, workspace
-selection, security settings) exist. No business modules are implemented yet.
+Sprint 03 — product catalog and inventory foundation. Products, categories,
+brands, global units of measure, product-specific conversions, batches with
+expiry metadata, an append-only stock movement ledger with a same-transaction
+balance projection, stock adjustments, and an append-only audit trail exist,
+with the Arabic `/products` and `/inventory` screens. Point of sale, purchasing,
+customer accounts, valuation/costing and expiry automation are **not**
+implemented.

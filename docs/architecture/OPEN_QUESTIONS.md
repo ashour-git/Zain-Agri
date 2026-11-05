@@ -1,7 +1,7 @@
 # ZAIN AGRI — Open Questions
 
-Status: Sprint 01
-Last updated: 2026-10-30
+Status: Sprint 03
+Last updated: 2026-11-01
 
 > **Rule.** Nothing in the "Blocks" column gets implemented on a guess. If a
 > question below is unanswered when its sprint starts, the correct move is to ask,
@@ -11,7 +11,13 @@ Legend — **Blocks:** what cannot proceed until answered. **Owner:** who can an
 
 ---
 
-## A. Blocking Sprint 02 (authentication)
+## A. Sprint 02 (authentication) — implemented
+
+> **Outcome.** Sprint 02 shipped **option C**: self-service registration creates a
+> tenant and an `OWNER` membership atomically. Invitations and email delivery are
+> still absent, so a store with more than one user cannot yet be staffed through
+> the product. The other questions below were answered by implementation as noted
+> in `docs/security/AUTHENTICATION.md`; their text is kept for the reasoning.
 
 ### Q1 — Who creates a tenant, and how does the first owner exist?
 
@@ -32,7 +38,8 @@ or operator-provisioned tenants produce different tables (`invitations`,
 but launching a public signup before pricing and support exist creates obligations
 nobody is staffed to meet.
 
-**Current assumption in code:** none — no tenant creation path exists.
+**Current assumption in code:** option C — `POST /auth/register` creates the user,
+the tenant and an `OWNER` membership in one transaction.
 
 **Owner:** Product.
 
@@ -133,16 +140,27 @@ explicit logout. Adjust after watching real usage.
 
 ---
 
-## B. Blocking Sprint 03 (products & inventory)
+## B. Sprint 03 (products & inventory)
+
+Sprint 03 was implemented on the **minimum defensible model**, because five of
+these questions are still unanswered. Each section records what shipped, so the
+next sprint can change it deliberately rather than discover it.
 
 ### Q8 — What defines an agricultural product?
 
-**Why it matters.** Generic retail schema (name, price, stock) cannot express
-active ingredient, concentration, registered crop, dose, pre-harvest interval or
-safety class. Those are what make this product different from a supermarket POS,
-and they must be designed before the product table is written.
+**Status: partially answered — universal columns only.**
 
-**Needed from the store owner.** Real examples for each category:
+Shipped: `name_ar` (required), `name`, SKU, barcode, description, category,
+brand, base unit, prices, minimum stock, `tracks_batches`. **Not** shipped:
+active ingredient, concentration, formulation, target pest/crop, dose,
+pre-harvest interval, safety class, germination rate, N-P-K composition.
+
+Rationale: those fields are category-specific and must be confirmed against real
+products. A 40-column sparse table would have been invented, not designed. The
+schema supports adding a category-specific attribute table without touching
+`products`.
+
+**Still needed from the store owner.** Real examples for each category:
 - Fertilizer: composition (N-P-K), weight, form (granular/liquid).
 - Pesticide: active ingredient, concentration, formulation, target pest/crop,
   pre-harvest interval, safety precautions.
@@ -159,13 +177,20 @@ a category-specific attribute table, not a 40-column sparse table. Confirm again
 
 ### Q9 — Which units exist, and are conversions needed?
 
-**Why it matters.** Stock may be bought in 25 kg sacks and sold in kilograms.
-Without a defined base unit and conversion factor, stock balances are wrong the
-first time someone opens a sack.
+**Status: answered for v1 — nine seeded units, explicit product conversions.**
 
-**Recommendation.** Each product has one base unit and an optional purchase unit
-with a fixed factor. No arbitrary conversions in v1 (no "1 sack = 25 kg except
-when it's 20").
+Shipped: global `units_of_measure` (`piece`, `pack`, `box`, `bag`, `bottle` =
+`count`; `kilogram`, `gram` = `mass`; `liter`, `milliliter` = `volume`), one base
+unit per product, and explicit `product_unit_conversions` that must involve the
+base unit. No conversion chain is inferred.
+
+**Still open.** Whether purchase and sale units differ per product in practice,
+and whether a packaging unit whose weight varies (a 25 kg sack that is sometimes
+20 kg) must be modelled per delivery. Today it must be a conversion of the
+product's base unit.
+
+**Recommendation unchanged.** One base unit per product; arbitrary chains remain
+out of scope.
 
 **Owner:** Store owner.
 
@@ -173,13 +198,19 @@ when it's 20").
 
 ### Q10 — Batch and expiry rules
 
-**Why it matters.** Pesticides and chemicals expire, and selling expired product is
-a legal and safety problem. It also decides whether stock valuation is
-batch-specific (needed for real margins when cost changes per delivery).
+**Status: partially answered — storage only, no enforcement.**
 
-**Needed.** Is a batch mandatory for every product or only for chemicals? Is FEFO
-enforced or advisory? Is selling expired stock blocked, warned, or allowed with a
-reason? Are returns re-entered into the original batch?
+Shipped: `tracks_batches` per product, `product_batches` with optional
+`expiry_date`, batch-level balance rejection when a movement would take a batch
+negative, and duplicate batch numbers rejected per product.
+
+**Not shipped:** FEFO allocation, expiry warnings, blocking the sale of expired
+stock, or automatic expiry movements. Batch tracking is opt-in per product, not
+mandatory by category.
+
+**Still needed.** Is a batch mandatory for every product or only for chemicals? Is
+FEFO enforced or advisory? Is selling expired stock blocked, warned, or allowed
+with a reason? Are returns re-entered into the original batch?
 
 **Recommendation.** Batch mandatory for chemicals/pesticides/seeds, optional for
 hardware; expiry warning at 90/30/0 days; sale of expired stock blocked for
@@ -191,13 +222,18 @@ pesticides and allowed only with an explicit override for others.
 
 ### Q11 — Negative stock: allowed or blocked?
 
-**Why it matters.** A busy counter may sell before receiving. Blocking is correct
-for accounting but stops a sale in front of a customer.
+**Status: answered for v1 — blocked, with no override.**
 
-**Recommendation.** Block by default; allow an owner-only override that records a
-reason. Never silently allow.
+Shipped: the API and the balance projection both reject a negative product
+balance, and a negative batch balance is rejected under the same row lock.
+Concurrent debits cannot oversell (`test_concurrent_adjustments_cannot_oversell`).
 
-**Owner:** Store owner.
+**Still open.** Whether an owner-only override is needed at the counter. No
+override exists, because an override without a costing and reconciliation model
+would hide real shortages.
+
+**Recommendation.** Keep blocking. If an override is approved, it must be its own
+permission, require a reason, and be visible in the audit feed.
 
 ---
 
@@ -306,6 +342,9 @@ close with a counted amount and a variance. Variance is visible to the owner onl
 | Q24 | Import of existing data — is there an Excel/notebook to migrate? | Determines whether an importer is needed in Sprint 02–03. No schema is invented before the real file is seen | Product |
 | Q25 | Scale expectations: products, invoices/day, concurrent users | Sizing, indexing, and whether projections are needed | Product |
 | Q26 | Supplier returns and damaged goods flow | Affects purchasing and stock valuation | Store owner |
+| Q27 | **Stock valuation / costing method** — FIFO, weighted average, or standard cost? Is stock value reported at cost or at sale price? Is COGS needed per sale? | `unit_cost` is recorded on every inbound movement, but nothing computes a value, a margin or COGS. Reporting stock value or profit before this is answered would be a guess | Store owner + accountant |
+| Q28 | Is a per-branch stock split needed in Sprint 04? | The ledger has no `branch_id`; adding it later is a schema and backfill change | Store owner |
+| Q29 | Does the pilot need an audit viewer UI, or is the API feed enough? | `GET /audit` exists; no screen consumes it | Product |
 
 ---
 
@@ -316,10 +355,15 @@ These are **not** confirmed requirements. Each must be validated or changed.
 | Assumption | Where | If wrong |
 |---|---|---|
 | A user may belong to multiple tenants | `memberships` has no `UNIQUE (user_id)` | Add the constraint, drop the switcher |
-| Roles are `owner`/`admin`/`member` | `membership_role` enum | New migration to add/rename values |
+| Role vocabulary is `owner`/`manager`/`cashier`/`inventory_manager` | `membership_role` enum, `authorization/permissions.py` | Renaming or adding a role is an enum migration plus a policy row |
 | Tenants are either `active` or `suspended` | `tenant_status` enum | Add values (e.g. `trial`, `closed`) |
-| One branch per tenant for the pilot | No `branches` table | Add in Sprint 02 before inventory |
+| One branch per tenant for the pilot | No `branches` table | Add a `branch_id` to the ledger and its balances, with a backfill |
 | Email is the login identifier | `users.email` unique | Add `username` or phone login |
 | Arabic is the only locale | No i18n framework | Introduce `next-intl` |
-| Money will be `NUMERIC(14,2)` EGP | Not yet modelled | Currency decision |
+| Money will be `NUMERIC(14,2)` EGP | `products.cost_price`, `sale_price` | Currency decision |
+| One base unit per product, conversions only to/from it | `product_unit_conversions` | A chain resolver plus a migration of stored factors |
+| Quantities are `NUMERIC(18,4)` in the base unit | `stock_movements.base_quantity`, `inventory_balances` | Precision or unit-model change, with a data migration |
+| Cost is visible to OWNER only | `ROLE_PERMISSIONS`, `inventory.view_cost` | One-line policy change |
+| Batch tracking is opt-in per product | `products.tracks_batches` | Making it mandatory per category is a data and UI change |
+| `unit_cost` is informational, not a valuation | `stock_movements.unit_cost` | Q27 must be answered before any valuation feature |
 | Local dev port 5433 is acceptable | `.env`, scripts | Change port, scripts and docs |

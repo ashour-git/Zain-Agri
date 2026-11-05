@@ -30,8 +30,8 @@ type NavItem = {
 const primaryNav: NavItem[] = [
   { label: "لوحة التحكم", icon: LayoutDashboard, href: "/" },
   { label: "نقطة البيع", icon: ShoppingCart, soon: true },
-  { label: "المخزون", icon: Boxes, soon: true },
-  { label: "المنتجات", icon: Package, soon: true },
+  { label: "المخزون", icon: Boxes, href: "/inventory" },
+  { label: "المنتجات", icon: Package, href: "/products" },
   { label: "المبيعات", icon: Receipt, soon: true },
   { label: "المشتريات", icon: Truck, soon: true },
   { label: "العملاء", icon: Users, soon: true },
@@ -116,7 +116,7 @@ export function Sidebar({ workspaceName }: { workspaceName: string }) {
         {secondaryNav.map((item) => (
           <NavLink key={item.label} item={item} active={isActive(item.href)} />
         ))}
-        <p className="pt-3 text-[11px] leading-relaxed text-brand-300/70">الإصدار 0.2.0 — Sprint 02</p>
+        <p className="pt-3 text-xs leading-relaxed text-brand-300/70">الإصدار 0.3.0 - Sprint 03</p>
       </div>
     </aside>
   );

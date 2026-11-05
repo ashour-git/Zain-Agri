@@ -38,7 +38,7 @@ export function Header({
             className="hidden items-center gap-2 rounded-full border border-line bg-white px-3 py-1.5 sm:inline-flex"
           >
             <span className="size-1.5 rounded-full bg-accent-500" aria-hidden="true" />
-            <span className="max-w-40 truncate text-[11px] text-ink-muted">{workspaceName}</span>
+            <span className="max-w-40 truncate text-xs text-ink-muted">{workspaceName}</span>
             {role ? <Badge variant="brand">{ROLE_LABELS[role]}</Badge> : null}
           </Link>
 

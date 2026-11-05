@@ -17,7 +17,7 @@ export default function Error({
         مع الرمز التالي.
       </p>
       {error.digest ? (
-        <code className="rounded-md bg-white px-2 py-1 text-[11px] text-ink-muted ring-1 ring-line">
+        <code className="rounded-md bg-white px-2 py-1 text-xs text-ink-muted ring-1 ring-line">
           {error.digest}
         </code>
       ) : null}

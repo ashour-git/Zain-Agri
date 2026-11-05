@@ -27,9 +27,9 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
             <div className="w-full max-w-md">{children}</div>
           </div>
 
-          <p className="flex items-center justify-center gap-2 text-[11px] text-brand-300/70">
+          <p className="flex items-center justify-center gap-2 text-xs text-brand-300/70">
             <Sprout className="size-3.5" aria-hidden="true" />
-            ZAIN AGRI — منصة إدارة الأعمال الزراعية
+            ZAIN AGRI - منصة إدارة الأعمال الزراعية
           </p>
         </div>
       </div>

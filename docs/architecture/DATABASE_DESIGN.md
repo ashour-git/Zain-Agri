@@ -1,7 +1,7 @@
 # ZAIN AGRI — Database Design
 
-Status: Sprint 02
-Last updated: 2026-10-31
+Status: Sprint 03
+Last updated: 2026-11-01
 Engine: PostgreSQL 17.5 (local dev cluster, port 5433)
 
 ---
@@ -41,6 +41,18 @@ first isolation test asserts `rolsuper = false` and `rolbypassrls = false`.
 tables created by future migrations are covered automatically. It also grants
 `EXECUTE` on `app_user_tenants(uuid)` — the only function the runtime role may
 call. Grants are kept out of Alembic because role names differ per environment.
+
+Since Sprint 03 the grants file also **revokes** privileges that contradict the
+data model:
+
+| Table | Revoked from `zain_app` | Why |
+|---|---|---|
+| `stock_movements` | `UPDATE, DELETE, TRUNCATE` | The ledger is append-only |
+| `audit_logs` | `UPDATE, DELETE, TRUNCATE` | The audit trail is append-only |
+| `units_of_measure` | `INSERT, UPDATE, DELETE, TRUNCATE` | Global reference data, seeded by migration only |
+
+The revokes are guarded by `to_regclass(...) IS NOT NULL`, so the file stays
+runnable against a database that predates those tables.
 
 ## 3. Schema
 
@@ -95,7 +107,8 @@ erDiagram
     }
 ```
 
-Four tables. Nothing else is justified yet.
+Sprint 02's identity schema is four tables. Sprint 03 adds eight tenant-owned
+tables plus one global reference table — see §3.5.
 
 ### 3.1 `tenants`
 
@@ -206,16 +219,75 @@ One row per live (or rotated-away) refresh token.
   query filters by `user_id`, and the row is never returned by the API. This is
   documented in `docs/security/TENANT_ISOLATION.md` §3.2.
 
+### 3.5 Sprint 03 tables (catalog & inventory)
+
+Nine new tables. One is global reference data; the other eight carry
+`tenant_id` and RLS.
+
+```mermaid
+erDiagram
+    UNITS_OF_MEASURE ||--o{ PRODUCTS : "base / purchase / sale"
+    PRODUCT_CATEGORIES ||--o{ PRODUCT_CATEGORIES : "parent"
+    PRODUCT_CATEGORIES ||--o{ PRODUCTS : classifies
+    BRANDS ||--o{ PRODUCTS : brands
+    PRODUCTS ||--o{ PRODUCT_UNIT_CONVERSIONS : converts
+    PRODUCTS ||--o{ PRODUCT_BATCHES : batches
+    PRODUCTS ||--o{ STOCK_MOVEMENTS : "ledger rows"
+    PRODUCT_BATCHES ||--o{ STOCK_MOVEMENTS : "allocated to"
+    PRODUCTS ||--|| INVENTORY_BALANCES : "projection"
+    TENANTS ||--o{ AUDIT_LOGS : "trail"
+```
+
+| Table | Tenant-owned | Key constraints |
+|---|---|---|
+| `units_of_measure` | **no** | `code` unique; `dimension` ∈ `count`, `mass`, `volume` |
+| `product_categories` | yes | `UNIQUE (tenant_id, id)`; `UNIQUE (tenant_id, parent_id, name)`; self-FK `(tenant_id, parent_id)` |
+| `brands` | yes | `UNIQUE (tenant_id, id)`; `UNIQUE (tenant_id, name)` |
+| `products` | yes | `UNIQUE (tenant_id, sku)`; partial unique `(tenant_id, barcode) WHERE barcode IS NOT NULL`; `UNIQUE (tenant_id, id)` |
+| `product_unit_conversions` | yes | `UNIQUE (tenant_id, product_id, from_unit_id, to_unit_id)` |
+| `product_batches` | yes | `UNIQUE (tenant_id, id)`; `UNIQUE (tenant_id, product_id, batch_number)` |
+| `stock_movements` | yes | Composite FKs to product and batch; no unique business key — the row is the event |
+| `inventory_balances` | yes | `PRIMARY KEY (tenant_id, product_id)`; `CHECK (quantity >= 0)` |
+| `audit_logs` | yes | `(tenant_id, created_at)` and `(tenant_id, entity_type, entity_id)` indexes |
+
+**Composite foreign keys.** Every tenant-scoped reference is
+`(tenant_id, parent_id) → parent (tenant_id, id)`. This requires
+`UNIQUE (tenant_id, id)` on each parent table, and it makes a row that belongs
+to tenant A but points at tenant B's product *unrepresentable*, even for SQL that
+bypasses the application predicates. RLS alone would reject the insert at the
+policy layer; the composite FK rejects it at the referential layer too.
+
+**Units are global on purpose.** Every store sells kilograms; a per-tenant copy
+would produce divergent ids for the same physical unit and no way to compare
+stock across workspaces. They are seeded by migration and protected by a revoked
+`INSERT/UPDATE/DELETE` grant.
+
+**Ledger plus projection.** `stock_movements` is append-only and is the source of
+truth. `inventory_balances` is a derivation of it, written only inside the same
+transaction as the movement. `docs/architecture/INVENTORY_LEDGER.md` describes the
+write path, the row lock and the reconciliation query.
+
+Type conventions introduced by Sprint 03:
+
+| Kind | Type | Rule |
+|---|---|---|
+| Money | `NUMERIC(14,2)` | Never float; serialised as a string |
+| Quantity | `NUMERIC(18,4)` | Base-unit quantity, four decimals |
+| Conversion factor | `NUMERIC(18,6)` | Allows gram-level factors |
+| Unit cost | `NUMERIC(18,6)` | Per base unit, informational only |
+
 ## 4. Row Level Security
 
-Both tenant-owned tables (`tenants`, `memberships`) have RLS enabled.
+Ten tenant-owned tables have RLS enabled: `tenants`, `memberships`,
+`product_categories`, `brands`, `products`, `product_unit_conversions`,
+`product_batches`, `stock_movements`, `inventory_balances`, `audit_logs`.
 
 ```sql
 -- tenants
 USING      (id = nullif(current_setting('app.tenant_id', true), '')::uuid)
 WITH CHECK (id = nullif(current_setting('app.tenant_id', true), '')::uuid)
 
--- memberships
+-- every other tenant-owned table
 USING      (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid)
 WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid)
 ```
@@ -234,9 +306,37 @@ Three properties matter more than the SQL:
 `tenants` uses `id = ...` because the tenant's own row is its tenancy scope. A
 tenant can therefore read and update only itself, which is what the API needs.
 
-`users` has no policy: it is not tenant-owned. See §3.2 and `OPEN_QUESTIONS.md`.
+`units_of_measure` has no policy because it is global reference data, not
+tenant-owned. `users` and `refresh_sessions` have no policy; see §3.2 and
+`OPEN_QUESTIONS.md`.
 
-### 4.1 Cross-tenant lookup function
+### 4.1 Append-only enforcement
+
+Two tables must never lose a row or change one:
+
+```sql
+CREATE FUNCTION app_block_mutation() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    RAISE EXCEPTION 'append-only table: % may not be modified', TG_TABLE_NAME;
+END $$;
+
+CREATE TRIGGER stock_movements_append_only
+BEFORE UPDATE OR DELETE ON stock_movements
+FOR EACH ROW EXECUTE FUNCTION app_block_mutation();
+
+CREATE TRIGGER audit_logs_append_only
+BEFORE UPDATE OR DELETE ON audit_logs
+FOR EACH ROW EXECUTE FUNCTION app_block_mutation();
+```
+
+RLS scopes rows; this trigger protects them from *every* role including the
+owner path. `grants.sql` additionally revokes `UPDATE, DELETE, TRUNCATE` from
+`zain_app`, so the runtime role cannot even attempt it. A migration (run as the
+owner) can still drop the trigger — a deliberate, reviewable act, not an
+accident.
+
+### 4.2 Cross-tenant lookup function
 
 Login must resolve "which workspaces may this user enter?" before any tenant
 context exists. Instead of weakening the policies, `0003_user_tenants` adds:
@@ -295,9 +395,16 @@ policies. Sprint 02 adds:
 |---|---|
 | `0002_auth` | `users.email_verified_at`; `memberships.status` + `ix_memberships_user_status`; rebuild of `membership_role` with data mapping; `refresh_sessions` table and indexes |
 | `0003_user_tenants` | `SECURITY DEFINER` function `app_user_tenants(uuid)` + `REVOKE ALL … FROM PUBLIC` |
+| `0004_catalog` | `unit_dimension` + `product_status` enums; `units_of_measure` (with nine seeded rows), `product_categories`, `brands`, `products`, `product_unit_conversions`; indexes, composite FKs, RLS policies |
+| `0005_inventory` | `stock_movement_type` enum (11 values); `product_batches`, `stock_movements`, `inventory_balances`; composite FKs, `CHECK (quantity >= 0)`, RLS policies, `app_block_mutation()` + both append-only triggers |
+| `0006_audit` | `audit_logs`, its two indexes, RLS policy, append-only trigger |
 
-All three are applied to both `zain_agri` and `zain_agri_test`. Downgrades are
-written, including dropping the function and reversing the enum mapping.
+All six are applied to both `zain_agri` and `zain_agri_test`. Downgrades are
+written in reverse order, including dropping the append-only triggers before
+their tables, the helper function, the enums, and the policies.
+
+`grants.sql` must be re-applied after `alembic upgrade head`, otherwise the
+runtime role has no privileges on the new tables.
 
 `alembic/env.py` imports every model module so `Base.metadata` is populated. Any
 new model module must be imported there before `--autogenerate` will see it.
@@ -328,13 +435,18 @@ privileges as production requests.
 
 ## 9. Deliberately absent
 
-Not forgotten — excluded because nothing in Sprint 01 justifies the shape:
+Not forgotten — excluded because nothing in the current sprint justifies the
+shape:
 
-- Products, categories, units, batches, stock movements.
-- Sales, invoices, payments, cashbox.
-- Customers, suppliers, branches.
-- Audit log, `created_by` columns.
-- Soft deletes, `deleted_at`.
+- Soft deletes, `deleted_at` (products use an explicit `archived` status).
+- Sales, invoices, payments, cashbox, purchases, suppliers.
+- Customers, price lists, discounts.
+- Branches and per-branch stock (would add a key to the ledger, not a column to
+  balances).
+- Product images and object storage.
+- Reservations and stock transfers.
+- Costing/valuation tables (FIFO layers, weighted averages) — the method is
+  undecided (`OPEN_QUESTIONS.md` Q27).
 - Password reset tokens, MFA secrets, email verification tokens.
 - Partitioning, materialised views, read replicas.
 
@@ -343,10 +455,14 @@ Not forgotten — excluded because nothing in Sprint 01 justifies the shape:
 | Limitation | Impact | Plan |
 |---|---|---|
 | `updated_at` is set by the ORM (`onupdate`), not a trigger | Raw SQL updates leave it stale | Add a `moddatetime`/trigger migration when admin tooling appears |
-| `memberships` has no `updated_at` | A role change is not timestamped | Add with the audit log in Sprint 03 |
-| No audit trail | Mutations are unattributable | Audit table alongside sales/finance |
+| `memberships` has no `updated_at` | A role change is not timestamped | Add with member management |
 | `users` is not RLS-protected | Requires application-level discipline | Every endpoint resolves a membership first; revisit with a projection function |
 | `refresh_sessions` is not RLS-protected | Requires every query to filter by `user_id` | Single service module owns access; row is never serialised |
-| Expired refresh sessions are not deleted | Table grows with every login/rotation | Scheduled cleanup job (Sprint 03 operational task) |
-| Case-insensitive email relies on app normalisation + functional index | Two indexes on the same column | Acceptable; simplifies to `citext` or a normalised column later if needed |
+| Expired refresh sessions are not deleted | Table grows with every login/rotation | Scheduled cleanup job |
+| Case-insensitive email relies on app normalisation + functional index | Two indexes on the same column | Acceptable; simplifies to `citext` later if needed |
 | `app_user_tenants` accepts any user id from the runtime role | SQL injection could enumerate memberships | Parameter binding throughout; read-only function; `EXECUTE` restricted |
+| Reconciliation of ledger vs. balances is a test helper | A production drift would go unnoticed | Scheduled integrity job before launch |
+| No valuation or COGS | Stock value and margin cannot be reported | Depends on Q27 |
+| No expiry/FEFO automation | Expired batches are displayed but not enforced | Depends on Q10 |
+| No per-branch stock | One physical location per workspace | `branches` table + ledger key |
+| Audit volume has no retention policy | Table grows unbounded | Monthly partitioning + retention decision |

@@ -2,6 +2,11 @@ import type { ComponentProps } from "react";
 
 import { cn } from "@/lib/utils";
 
+export const controlClass = cn(
+  "w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm text-ink shadow-sm outline-none transition",
+  "placeholder:text-ink-muted/60 focus:border-brand-500 focus:ring-2 focus:ring-brand-200",
+);
+
 export function Field({
   label,
   error,
@@ -22,26 +27,83 @@ export function Field({
         id={inputId}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy}
-        className={cn(
-          "w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-ink shadow-sm outline-none transition",
-          "placeholder:text-ink-muted/60 focus:border-brand-500 focus:ring-2 focus:ring-brand-200",
-          error ? "border-red-300 focus:border-red-400 focus:ring-red-100" : "border-line",
-          className,
-        )}
+        className={cn(controlClass, error && "border-red-300 focus:border-red-400 focus:ring-red-100", className)}
         {...props}
       />
       {error ? (
-        <p id={`${inputId}-error`} className="text-[11px] text-red-600">
+        <p id={`${inputId}-error`} className="text-xs text-red-600">
           {error}
         </p>
       ) : hint ? (
-        <p id={`${inputId}-hint`} className="text-[11px] text-ink-muted">
+        <p id={`${inputId}-hint`} className="text-xs text-ink-muted">
           {hint}
         </p>
       ) : null}
     </div>
   );
 }
+
+export function SelectField({
+  label,
+  error,
+  hint,
+  className,
+  children,
+  ...props
+}: ComponentProps<"select"> & { label: string; error?: string; hint?: string }) {
+  const selectId = props.id ?? props.name;
+  const describedBy = error ? `${selectId}-error` : hint ? `${selectId}-hint` : undefined;
+
+  return (
+    <div className="space-y-1.5">
+      <label htmlFor={selectId} className="block text-xs font-medium text-ink">
+        {label}
+      </label>
+      <select
+        id={selectId}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={describedBy}
+        className={cn(controlClass, "appearance-none", error && "border-red-300", className)}
+        {...props}
+      >
+        {children}
+      </select>
+      {error ? (
+        <p id={`${selectId}-error`} className="text-xs text-red-600">
+          {error}
+        </p>
+      ) : hint ? (
+        <p id={`${selectId}-hint`} className="text-xs text-ink-muted">
+          {hint}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+export function TextareaField({
+  label,
+  hint,
+  className,
+  ...props
+}: ComponentProps<"textarea"> & { label: string; hint?: string }) {
+  const textareaId = props.id ?? props.name;
+
+  return (
+    <div className="space-y-1.5">
+      <label htmlFor={textareaId} className="block text-xs font-medium text-ink">
+        {label}
+      </label>
+      <textarea
+        id={textareaId}
+        className={cn(controlClass, "min-h-20 resize-y", className)}
+        {...props}
+      />
+      {hint ? <p className="text-xs text-ink-muted">{hint}</p> : null}
+    </div>
+  );
+}
+
 
 export function SubmitButton({
   children,

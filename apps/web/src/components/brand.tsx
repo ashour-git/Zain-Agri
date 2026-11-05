@@ -26,7 +26,7 @@ export function BrandWordmark() {
   return (
     <div className="flex flex-col leading-tight">
       <span className="text-[15px] font-bold tracking-wide text-white">ZAIN AGRI</span>
-      <span className="text-[11px] font-medium text-brand-200">منصة إدارة الأعمال الزراعية</span>
+      <span className="text-xs font-medium text-brand-200">منصة إدارة الأعمال الزراعية</span>
     </div>
   );
 }

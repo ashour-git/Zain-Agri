@@ -56,7 +56,7 @@ export default function DashboardPage() {
           <div className="relative flex flex-col gap-5 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
             <div className="max-w-xl space-y-2">
               <Badge variant="lime" className="bg-accent-400/15 text-accent-300 ring-accent-400/30">
-                Sprint 01 — الأساس
+                Sprint 01 - الأساس
               </Badge>
               <h2 className="text-xl font-bold sm:text-2xl">أهلاً بك في ZAIN AGRI</h2>
               <p className="text-sm leading-relaxed text-brand-100/90">
@@ -87,7 +87,7 @@ export default function DashboardPage() {
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-sm font-semibold text-ink">الوحدات القادمة</h2>
-          <span className="text-[11px] text-ink-muted">جاهزة للتنفيذ بعد Sprint 01</span>
+          <span className="text-xs text-ink-muted">جاهزة للتنفيذ بعد Sprint 01</span>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

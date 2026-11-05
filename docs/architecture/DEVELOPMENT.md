@@ -165,10 +165,10 @@ Run these before claiming any change works.
 ```powershell
 # Backend
 cd apps/api
-uv run pytest -q                  # 85 passed at Sprint 02
+uv run pytest -q                  # 176 passed at Sprint 03
 uv run ruff check .               # All checks passed
 uv run ruff format --check .
-uv run mypy app                   # Success: no issues found in 32 source files
+uv run mypy app                   # Success: no issues found in 47 source files
 
 # Frontend
 pnpm --filter web typecheck
@@ -203,19 +203,22 @@ apps/api
 │   │   ├── auth/             passwords, JWT, refresh sessions, auth routes
 │   │   ├── authorization/    role → permission policy
 │   │   ├── tenants/          workspace settings, member listing
-│   │   └── tenancy/          set_tenant_context, current_tenant_id
+│   │   ├── tenancy/          set_tenant_context, current_tenant_id
+│   │   ├── catalog/          units, categories, brands, products, conversions
+│   │   ├── inventory/        movements, balances, batches, adjustments
+│   │   └── audit/            append-only trail + owner-only feed
 │   └── main.py               create_app()
 ├── alembic/
 │   ├── env.py
-│   └── versions/             0001_identity, 0002_auth, 0003_user_tenants
-├── tests/                    auth, RBAC, tenant isolation, health
+│   └── versions/             0001_identity … 0006_audit
+├── tests/                    auth, RBAC, isolation, products, inventory, audit, health
 ├── run.py                    Windows-safe uvicorn entry point
 └── pyproject.toml            deps, ruff, mypy, pytest
 
 apps/web/src
-├── app/                      (auth)/, (app)/, select-tenant, error/loading/not-found
-├── components/               auth/, brand, shell/, dashboard/, ui/
-└── lib/                      api.ts, auth-provider.tsx, types.ts, utils.ts
+├── app/                      (auth)/, (app)/, products/, inventory/, select-tenant
+├── components/               auth/, brand, shell/, dashboard/, catalog/, inventory/, ui/
+└── lib/                      api.ts, auth-provider.tsx, catalog.ts, types.ts, utils.ts
 ```
 
 ## 8. Troubleshooting
@@ -310,7 +313,7 @@ PowerShell-specific.
 
 ## 11. Production direction
 
-Not implemented in Sprint 01. When it is:
+Not implemented yet. When it is:
 
 - Managed PostgreSQL 17 (Neon or equivalent) with TLS and `scram-sha-256`.
 - A dedicated non-superuser application role, as locally.

@@ -77,7 +77,7 @@ function Row({
         <Icon className="size-4" aria-hidden="true" />
       </span>
       <div className="min-w-0">
-        <p className="text-[11px] text-ink-muted">{label}</p>
+        <p className="text-xs text-ink-muted">{label}</p>
         <p
           className={`truncate text-sm font-medium text-ink ${mono ? "font-mono text-xs" : ""}`}
           dir={mono ? "ltr" : undefined}
@@ -179,8 +179,8 @@ export default function SecuritySettingsPage() {
           <CardDescription>البيانات التي يعرفها الخادم عنك في هذه الجلسة.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2">
-          <Row icon={User} label="الاسم" value={session?.user.full_name ?? "—"} />
-          <Row icon={Mail} label="البريد الإلكتروني" value={session?.user.email ?? "—"} mono />
+          <Row icon={User} label="الاسم" value={session?.user.full_name ?? "-"} />
+          <Row icon={Mail} label="البريد الإلكتروني" value={session?.user.email ?? "-"} mono />
           <Row
             icon={Building2}
             label="مساحة العمل"
@@ -191,8 +191,8 @@ export default function SecuritySettingsPage() {
             label="الدور والصلاحيات"
             value={
               session?.role
-                ? `${ROLE_LABELS[session.role as MembershipRole]} — ${session.permissions.length} صلاحية`
-                : "—"
+                ? `${ROLE_LABELS[session.role as MembershipRole]} - ${session.permissions.length} صلاحية`
+                : "-"
             }
           />
         </CardContent>
@@ -233,7 +233,7 @@ export default function SecuritySettingsPage() {
                     {deviceLabel(row.user_agent)}
                     {row.is_current ? <Badge variant="brand">هذا الجهاز</Badge> : null}
                   </p>
-                  <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-ink-muted">
+                  <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-ink-muted">
                     <span className="inline-flex items-center gap-1">
                       <Clock className="size-3" aria-hidden="true" />
                       بدأت {formatDate(row.created_at)}
@@ -248,7 +248,7 @@ export default function SecuritySettingsPage() {
                     void revoke(row);
                   }}
                   disabled={busyId !== null || revokingAll}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-[11px] text-ink-muted transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs text-ink-muted transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Trash2 className="size-3.5" aria-hidden="true" />
                   {busyId === row.id ? "جارٍ الإنهاء…" : "إنهاء"}
@@ -318,7 +318,7 @@ export default function SecuritySettingsPage() {
               رمز التجديد يُخزَّن في ملف تعريف ارتباط <strong>HttpOnly</strong> ولا يمكن لأي
               جافاسكربت قراءته.
             </li>
-            <li>رمز الوصول قصير العمر ويُحفظ في ذاكرة الصفحة فقط — لا localStorage.</li>
+            <li>رمز الوصول قصير العمر ويُحفظ في ذاكرة الصفحة فقط، ولا يُخزَّن في localStorage.</li>
             <li>يُستبدل رمز التجديد عند كل استخدام، وإعادة استخدام رمز قديم تُلغي العائلة كلها.</li>
             <li>طلبات التغيير القادمة من أصل غير مسموح به تُرفض (حماية CSRF).</li>
             <li>كل استعلام على بيانات المتجر محكوم بسياسة RLS على مستوى PostgreSQL.</li>

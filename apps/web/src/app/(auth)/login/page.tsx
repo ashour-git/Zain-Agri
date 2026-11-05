@@ -89,7 +89,7 @@ export default function LoginPage() {
               أنشئ متجرك الآن
             </a>
           </p>
-          <p className="leading-relaxed text-[11px]">
+          <p className="leading-relaxed text-xs">
             نستخدم ملف تعريف ارتباط HttpOnly لجلسة التجديد، ولا نحفظ رموز الدخول في المتصفح.
           </p>
         </div>

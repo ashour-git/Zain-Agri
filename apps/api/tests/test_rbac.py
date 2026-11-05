@@ -41,19 +41,43 @@ def test_owner_holds_every_permission() -> None:
     assert permissions_for(MembershipRole.OWNER) == frozenset(Permission)
 
 
+CATALOG_EDIT = {
+    Permission.PRODUCTS_READ,
+    Permission.PRODUCTS_CREATE,
+    Permission.PRODUCTS_UPDATE,
+    Permission.PRODUCTS_ARCHIVE,
+    Permission.CATEGORIES_MANAGE,
+}
+
+
 def test_role_matrix_matches_the_documented_policy() -> None:
     assert permissions_for(MembershipRole.MANAGER) == frozenset(
         {
             Permission.SALES_OPERATE,
             Permission.SALES_REFUND,
-            Permission.INVENTORY_MANAGE,
             Permission.PURCHASES_MANAGE,
             Permission.REPORTS_VIEW,
+            Permission.INVENTORY_READ,
+            Permission.INVENTORY_ADJUST,
+            Permission.BATCHES_MANAGE,
+            *CATALOG_EDIT,
         }
     )
-    assert permissions_for(MembershipRole.CASHIER) == frozenset({Permission.SALES_OPERATE})
+    assert permissions_for(MembershipRole.CASHIER) == frozenset(
+        {
+            Permission.SALES_OPERATE,
+            Permission.PRODUCTS_READ,
+            Permission.INVENTORY_READ,
+        }
+    )
     assert permissions_for(MembershipRole.INVENTORY_MANAGER) == frozenset(
-        {Permission.INVENTORY_MANAGE, Permission.REPORTS_VIEW}
+        {
+            Permission.REPORTS_VIEW,
+            Permission.INVENTORY_READ,
+            Permission.INVENTORY_ADJUST,
+            Permission.BATCHES_MANAGE,
+            *CATALOG_EDIT,
+        }
     )
 
 
@@ -62,6 +86,24 @@ def test_restricted_roles_have_no_financial_visibility(role: MembershipRole) -> 
     assert Permission.FINANCE_VIEW not in permissions_for(role)
     assert Permission.USERS_MANAGE not in permissions_for(role)
     assert Permission.TENANT_SETTINGS_MANAGE not in permissions_for(role)
+
+
+@pytest.mark.parametrize(
+    "role",
+    [MembershipRole.MANAGER, MembershipRole.CASHIER, MembershipRole.INVENTORY_MANAGER],
+)
+def test_cost_and_audit_visibility_is_owner_only(role: MembershipRole) -> None:
+    """Seeing cost price or the audit trail is an owner decision, not a default."""
+    assert Permission.INVENTORY_VIEW_COST not in permissions_for(role)
+    assert Permission.AUDIT_READ not in permissions_for(role)
+
+
+@pytest.mark.parametrize(
+    "role",
+    [MembershipRole.MANAGER, MembershipRole.CASHIER, MembershipRole.INVENTORY_MANAGER],
+)
+def test_only_the_owner_holds_every_permission(role: MembershipRole) -> None:
+    assert permissions_for(role) < permissions_for(MembershipRole.OWNER)
 
 
 def test_only_the_owner_manages_settings_and_users() -> None:
@@ -96,12 +138,29 @@ async def test_permissions_endpoint_reflects_the_role(
         MembershipRole.MANAGER: {
             "sales.operate",
             "sales.refund",
-            "inventory.manage",
             "purchases.manage",
             "reports.view",
+            "inventory.read",
+            "inventory.adjust",
+            "batches.manage",
+            "products.read",
+            "products.create",
+            "products.update",
+            "products.archive",
+            "categories.manage",
         },
-        MembershipRole.CASHIER: {"sales.operate"},
-        MembershipRole.INVENTORY_MANAGER: {"inventory.manage", "reports.view"},
+        MembershipRole.CASHIER: {"sales.operate", "products.read", "inventory.read"},
+        MembershipRole.INVENTORY_MANAGER: {
+            "reports.view",
+            "inventory.read",
+            "inventory.adjust",
+            "batches.manage",
+            "products.read",
+            "products.create",
+            "products.update",
+            "products.archive",
+            "categories.manage",
+        },
     }
 
     for role, expected in expected_by_role.items():

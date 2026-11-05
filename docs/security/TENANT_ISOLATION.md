@@ -1,7 +1,7 @@
 # ZAIN AGRI — Tenant Isolation
 
-Status: Sprint 02
-Last updated: 2026-10-31
+Status: Sprint 03
+Last updated: 2026-11-01
 
 Tenant isolation is the property that a request authenticated as a member of
 workspace A can never read, create, update or delete anything belonging to
@@ -24,7 +24,7 @@ flowchart TB
     sess --> user["Load user<br/>reject disabled"]
     user --> members["Re-read memberships and tenant status<br/>(never trust tid / rol claims)"]
     members --> ctx["Bind transaction:<br/>set_config('app.tenant_id', :id, true)"]
-    ctx --> rls{"PostgreSQL RLS<br/>tenants.id / memberships.tenant_id<br/>= current_setting(...)"}
+    ctx --> rls{"PostgreSQL RLS<br/>tenant_id = current_setting(...)"}
     rls -->|match| data["Rows"]
     rls -->|no match or no context| nothing["Zero rows / write rejected"]
 ```
@@ -71,7 +71,10 @@ Errors are deliberately specific but non-enumerating:
 
 ## 3. Row Level Security
 
-Enabled on the two tenant-owned tables that exist today.
+Enabled on the ten tenant-owned tables that exist today: `tenants`,
+`memberships`, `product_categories`, `brands`, `products`,
+`product_unit_conversions`, `product_batches`, `stock_movements`,
+`inventory_balances` and `audit_logs`.
 
 ```sql
 -- tenants: the row's own id is its tenancy scope
@@ -97,6 +100,13 @@ Why each detail matters:
 - **`WITH CHECK`** covers inserts and updates. A transaction bound to tenant A
   cannot insert a membership for tenant B; PostgreSQL raises
   `new row violates row-level security policy`.
+
+**Composite foreign keys as a second lock.** Sprint 03's catalog and inventory
+tables reference each other with `(tenant_id, parent_id) → parent (tenant_id, id)`
+instead of a plain `parent_id`. A cross-tenant pair therefore fails at the
+referential layer even for SQL that bypasses the application predicates — and RLS
+would already have hidden the parent row. This makes "row belongs to A, points at
+B's product" unrepresentable rather than merely rejected.
 
 ### 3.1 Transaction scoping and pool reuse
 
@@ -191,16 +201,20 @@ retry with a random suffix after rolling back.
 ## 6. Test results
 
 All suites run against `zain_agri_test` with the runtime role, after applying
-migrations `0001`–`0003` and `grants.sql`.
+migrations `0001`–`0006` and `grants.sql`.
 
 | Suite | Tests | Result |
 |---|---|---|
-| `tests/test_tenant_isolation.py` | RLS at the SQL layer, pool reuse, function ACL | pass |
-| `tests/test_tenant_isolation_api.py` | Cross-tenant HTTP access, interleaved requests, deleted workspace | pass |
-| `tests/test_auth_flow.py` | Login/refresh/revocation/onboarding/CSRF | pass |
-| `tests/test_rbac.py` | Role matrix and live re-authorisation | pass |
-| `tests/test_health.py` | Liveness/readiness | pass |
-| **Total** | **85** | **85 passed** |
+| `tests/test_tenant_isolation.py` | RLS at the SQL layer, pool reuse, function ACL | 13 pass |
+| `tests/test_tenant_isolation_api.py` | Cross-tenant HTTP access, interleaved requests, deleted workspace | 7 pass |
+| `tests/test_catalog_isolation.py` | RLS on all eight Sprint 03 tenant tables, cross-tenant FKs | 33 pass |
+| `tests/test_auth_flow.py` | Login/refresh/revocation/onboarding/CSRF | 39 pass |
+| `tests/test_rbac.py` | Role matrix and live re-authorisation | 28 pass |
+| `tests/test_products.py` | Catalog behaviour and tenant scoping | 20 pass |
+| `tests/test_inventory.py` | Ledger rules, concurrency, tenant scoping | 20 pass |
+| `tests/test_audit.py` | Attribution, atomicity, immutability, tenancy | 12 pass |
+| `tests/test_health.py` | Liveness/readiness | 4 pass |
+| **Total** | | **176 passed** |
 
 Coverage of the brief's required cases:
 
@@ -213,6 +227,10 @@ Coverage of the brief's required cases:
 - Pool reuse → `test_pooled_connection_does_not_leak_tenant_context`
 - Rollback/cleanup → `test_set_config_is_transaction_local`, `test_clearing_the_context_fails_closed`
 - Runtime role cannot bypass RLS → `test_runtime_role_cannot_bypass_rls`
+- Catalog/inventory isolation → `tests/test_catalog_isolation.py` (33 cases across
+  categories, brands, products, conversions, batches, movements, balances, audit;
+  each asserts the foreign row is invisible *and* that a cross-tenant insert
+  fails)
 
 A group of tests deliberately asserts the *negative* direction: renaming a
 workspace cannot touch another, passing a foreign `tenant_id` in the body is
@@ -220,11 +238,12 @@ ignored, and a role held in one workspace grants nothing in another.
 
 ## 7. Limitations and follow-ups
 
-1. **Only current tenant-owned tables are protected.** `tenants` and
-   `memberships` have policies. Every future table (`products`, `invoices`, …)
-   must ship with `ENABLE ROW LEVEL SECURITY` and both `USING` and `WITH CHECK`
+1. **Every tenant-owned table must opt in.** Ten tables have policies today.
+   Any future table with a `tenant_id` column (`invoices`, `customers`, …) must
+   ship with `ENABLE ROW LEVEL SECURITY` and both `USING` and `WITH CHECK`
    clauses in the same migration. Add a CI check that fails when a table has a
-   `tenant_id` column but no policy.
+   `tenant_id` column but no policy — the current suites would catch it, but only
+   if someone writes the test.
 2. **`app_user_tenants` is callable by the runtime role for any user id.** See
    §4. Mitigation: no dynamic SQL, no string interpolation anywhere in the app.
 3. **`users` is not RLS-protected.** A missing membership check in a future
@@ -236,6 +255,7 @@ ignored, and a role held in one workspace grants nothing in another.
    Verify before introducing an external pooler.
 5. **No audit trail for cross-tenant attempts.** Rejections are logged with
    request id, path and status, not with the attempted tenant id (which would be
-   attacker-controlled). A security audit table is a Sprint 03 candidate.
+   attacker-controlled). The Sprint 03 `audit_logs` table records business
+   mutations only; security events still go to application logs.
 6. **RLS is not a substitute for backups and encryption.** A database
    superuser, a backup, or a physical disk can still read everything.

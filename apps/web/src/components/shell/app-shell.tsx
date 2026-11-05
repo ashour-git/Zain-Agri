@@ -9,6 +9,8 @@ import { useAuth } from "@/lib/auth-provider";
 
 const TITLES: Record<string, { title: string; subtitle: string }> = {
   "/": { title: "نظرة عامة", subtitle: "ملخص أداء المتجر" },
+  "/products": { title: "المنتجات", subtitle: "الكتالوج والأسعار ووحدات القياس" },
+  "/inventory": { title: "المخزون", subtitle: "الأرصدة والحركات والدفعات" },
   "/settings/security": { title: "الأمان والجلسات", subtitle: "إدارة الدخول والأجهزة المرتبطة" },
 };
 
@@ -36,8 +38,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           }}
         />
         <main className="flex-1">{children}</main>
-        <footer className="border-t border-line px-5 py-4 text-[11px] text-ink-muted sm:px-8">
-          ZAIN AGRI — Sprint 02. الجلسات محمية على الخادم، ولا تُخزَّن رموز الوصول في المتصفح.
+        <footer className="border-t border-line px-5 py-4 text-xs text-ink-muted sm:px-8">
+          ZAIN AGRI - Sprint 03. الجلسات محمية على الخادم، ولا تُخزَّن رموز الوصول في المتصفح.
         </footer>
       </div>
     </div>

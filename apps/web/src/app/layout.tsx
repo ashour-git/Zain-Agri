@@ -15,7 +15,7 @@ const arabic = IBM_Plex_Sans_Arabic({
 
 export const metadata: Metadata = {
   title: {
-    default: "ZAIN AGRI — منصة إدارة الأعمال الزراعية",
+    default: "ZAIN AGRI - منصة إدارة الأعمال الزراعية",
     template: "%s | ZAIN AGRI",
   },
   description:

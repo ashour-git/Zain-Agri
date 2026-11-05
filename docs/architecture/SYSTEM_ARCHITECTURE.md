@@ -1,7 +1,7 @@
 # ZAIN AGRI — System Architecture
 
-Status: Sprint 02
-Last updated: 2026-10-31
+Status: Sprint 03
+Last updated: 2026-11-01
 
 ---
 
@@ -49,8 +49,8 @@ tenant isolation independently of the application code.
 | `docs` | Markdown | Decisions and requirements |
 
 There is deliberately no message broker, no cache layer and no worker process.
-Nothing in Sprint 01 needs them, and adding them early would create operational
-cost with no user-visible benefit.
+Nothing in the implemented sprints needs them, and adding them early would create
+operational cost with no user-visible benefit.
 
 ## 3. Modular monolith structure
 
@@ -81,7 +81,10 @@ flowchart TB
             authz["authorization/<br/>permission policy"]
             tenants["tenants/<br/>workspace settings · members"]
             tenancy["tenancy/<br/>tenant context"]
-            future_mod["products/ inventory/ sales/ …<br/>(not built)"]
+            catalog["catalog/<br/>products · categories · brands · units"]
+            inventory["inventory/<br/>ledger · balances · batches"]
+            audit["audit/<br/>append-only trail"]
+            future_mod["sales/ purchases/ customers/ …<br/>(not built)"]
         end
     end
 
@@ -103,9 +106,11 @@ flowchart TB
 | `authorization` | Permission vocabulary and role policy table | `identity` (role enum) |
 | `tenants` | Workspace settings, member listing | `auth` dependencies, `authorization`, `identity` |
 | `tenancy` | Tenant context propagation | `core`, `infrastructure` |
-| future `products` | Product, Category, Unit | `identity` (tenant id), `auth` (current tenant) |
-| future `inventory` | Movement ledger, batches | `products`, `identity`, `auth` |
-| future `sales` | Invoice, line, payment | `products`, `inventory`, `identity`, `auth` |
+| `catalog` | Units (read), categories, brands, products, product unit conversions | `identity`, `authorization`, `audit`, `auth` dependencies |
+| `inventory` | Stock movements, balances, batches | `catalog`, `authorization`, `audit`, `auth` dependencies |
+| `audit` | Append-only audit rows and the owner-only read feed | `authorization`, `auth` dependencies |
+| future `sales` | Invoice, line, payment | `catalog`, `inventory`, `identity`, `auth` |
+| future `purchases` | Supplier receipt, lines | `catalog`, `inventory`, `identity`, `auth` |
 
 **Rule:** a module never imports another module's ORM models to mutate them.
 It calls that module's public functions.
@@ -152,9 +157,11 @@ flowchart TB
 
 1. **Session-derived tenant.** The tenant id comes from the authenticated
    identity. A `tenant_id` in a request body is ignored.
-2. **Row Level Security.** Enabled on `tenants` and `memberships`. Policies
+2. **Row Level Security.** Enabled on all ten tenant-owned tables. Policies
    compare against `current_setting('app.tenant_id')`, which is `NULL` when
-   unset — so an unbound query returns zero rows instead of everything.
+   unset — so an unbound query returns zero rows instead of everything. Catalog
+   and inventory rows additionally use composite FKs `(tenant_id, parent_id)`, so
+   a cross-tenant reference is unrepresentable.
 3. **Non-superuser runtime role.** `zain_app` is `NOSUPERUSER NOBYPASSRLS`.
    A superuser would silently ignore every policy, so a test asserts this.
 4. **Transaction-local setting.** `set_config(..., true)` is discarded at
@@ -232,7 +239,8 @@ Choices:
 - One PostgreSQL database, one schema, `tenant_id` on tenant-owned tables.
 - UUID primary keys generated in the application (`uuid4`), not by sequences.
 - `TIMESTAMPTZ` everywhere, written in UTC.
-- Native enums for closed vocabularies (`tenant_status`, `membership_role`).
+- Native enums for closed vocabularies (`tenant_status`, `membership_role`,
+  `unit_dimension`, `product_status`, `stock_movement_type`).
 - Alembic for every schema change; no manual DDL against any environment.
 - Database/role split:
   - `zain` — owner, runs migrations.
@@ -240,20 +248,38 @@ Choices:
 
 Full model: `DATABASE_DESIGN.md`.
 
-## 8. Inventory architecture — direction
+## 8. Inventory architecture — implemented
 
-Not implemented. The intended invariant:
+Implemented in Sprint 03. Detail: `docs/architecture/INVENTORY_LEDGER.md`,
+`docs/modules/INVENTORY.md`.
 
 > Stock is never a mutable number. It is the sum of an immutable ledger.
 
 ```
-stock_movements (append-only)
-  tenant_id, product_id, batch_id, quantity_delta, reason, reference, occurred_at
+stock_movements (append-only, source of truth)
+  tenant_id, product_id, batch_id, movement_type,
+  quantity + unit_id (what was entered), base_quantity (signed delta),
+  unit_cost, reference_type/reference_id, notes, created_by, created_at
+        │
+        └──► inventory_balances (projection)
+             PK (tenant_id, product_id), quantity NUMERIC(18,4)
 ```
 
-Balances are derived, and cached only as a materialised projection if
-measurement proves it necessary. Corrections are new movements, never updates.
-This is what makes "why is stock 3?" answerable two years later.
+- **One writer.** Only `inventory/service.py` updates balances; future modules
+  call `record_movement` instead of writing the table.
+- **One transaction.** The ledger row, the balance update and the audit row
+  commit together or not at all.
+- **One lock.** `SELECT … FOR UPDATE` on the balance row serialises movements
+  per product, which also makes opening-balance and batch-sum checks race-free.
+- **Append-only.** A database trigger plus `REVOKE UPDATE/DELETE` means history
+  cannot be rewritten by any runtime path. Corrections are compensating
+  movements.
+- **No valuation yet.** `unit_cost` is recorded, but there is no FIFO, weighted
+  average or COGS until `OPEN_QUESTIONS.md` Q27 is answered.
+
+Writable movement types in Sprint 03: `opening_balance`, `adjustment_in`,
+`adjustment_out`. The other eight enum values exist for purchasing, sales,
+returns, damage, expiry and transfers, which will append their own movements.
 
 ## 9. Financial architecture — direction
 
@@ -265,9 +291,25 @@ Not implemented. The intended shape:
 - Unit cost is snapshotted onto the sale line at the moment of sale, so
   changing a supplier price never rewrites history.
 - Money is stored as `NUMERIC(14,2)`, never floating point.
-- Every mutation carries `created_by` and `created_at`.
+- Every mutation carries `created_by` and `created_at`, and an audit row in the
+  same transaction — the pattern Sprint 03 established.
 
-## 10. AI boundaries
+## 10. Audit architecture
+
+Implemented in Sprint 03. Detail: `docs/security/AUDIT_LOGGING.md`.
+
+- `audit_logs` is tenant-scoped, append-only, and written in the same
+  transaction as the business change through `audit.record()`.
+- The service flushes but never commits; a failed audit insert rolls the change
+  back, so a mutation cannot exist without its trail.
+- Sensitive keys (`password`, `token`, `secret`, `authorization`, `cookie`, …)
+  are dropped at any depth before serialisation.
+- Reading requires `audit.read` (OWNER-only in the current matrix); there is no
+  write endpoint.
+- Actor attribution uses `actor_id` with `ON DELETE SET NULL`, so removing a
+  user does not erase history.
+
+## 11. AI boundaries
 
 No AI in Sprint 01 or the MVP.
 
@@ -281,7 +323,7 @@ When it arrives, it sits **beside** the API, not inside it:
 The prerequisite is trustworthy historical data. Building forecasting on top of
 unvalidated inventory would produce confident nonsense.
 
-## 11. Deployment direction
+## 12. Deployment direction
 
 | Environment | Database | Notes |
 |---|---|---|
@@ -295,7 +337,7 @@ database.
 
 Deployment specifics wait for real requirements — see `OPEN_QUESTIONS.md`.
 
-## 12. Frontend structure
+## 13. Frontend structure
 
 ```
 apps/web/src
@@ -308,6 +350,8 @@ apps/web/src
 │   ├── (app)/
 │   │   ├── layout.tsx       AuthGuard requireTenant + AppShell
 │   │   ├── page.tsx         dashboard
+│   │   ├── products/page.tsx    catalog list, filters, dialogs
+│   │   ├── inventory/page.tsx   balances, detail panel, adjustments
 │   │   └── settings/security/page.tsx
 │   ├── select-tenant/page.tsx
 │   ├── loading.tsx, error.tsx, not-found.tsx
@@ -316,10 +360,13 @@ apps/web/src
 │   ├── auth/auth-guard.tsx  client-side navigation guard
 │   ├── shell/               sidebar, header, app shell
 │   ├── dashboard/           stat card
-│   └── ui/                  card, badge, field
+│   ├── catalog/             product dialog, taxonomy dialog
+│   ├── inventory/           adjustment dialog, batch dialog
+│   └── ui/                  card, badge, field, modal
 └── lib/
     ├── api.ts               in-memory access token, silent refresh
     ├── auth-provider.tsx    session state and auth actions
+    ├── catalog.ts           Arabic labels, formatters, unit conversion
     ├── types.ts             API contracts + Arabic labels
     └── utils.ts             cn()
 ```
@@ -342,7 +389,7 @@ so the palette is one source of truth (`--color-brand-*`, `--color-accent-*`,
 layout uses logical properties (`ms-*`, `me-*`, `ps-*`, `pe-*`), so the same
 components work in both directions without a second theme.
 
-## 13. Known architectural risks
+## 14. Known architectural risks
 
 | Risk | Impact | Mitigation |
 |---|---|---|
@@ -351,7 +398,9 @@ components work in both directions without a second theme.
 | Tenant context must be set per transaction | A missed call fails closed (no rows) rather than leaking | Fail-closed policies + `after_begin` re-apply + isolation tests |
 | Access-token validation hits the database on every request | A hot-path lookup | One indexed PK read; intentional to keep revocation immediate |
 | Rate limiting is per worker | A distributed brute force gets N × the limit | Documented; shared store is a production requirement |
-| No audit log yet | Security events have logs, not a queryable trail | Structured `zain.security` events; audit table scheduled with finance |
+| No cost/valuation method | Stock value and margins cannot be reported | `unit_cost` is captured now; the method waits for Q27 |
+| Audit volume is unbounded | `audit_logs` grows with every mutation | Retention and partitioning are launch tasks |
+| Ledger reconciliation is not scheduled | A projection drift would go unnoticed in production | Run the reconciliation query as a periodic integrity job before launch |
 | Future tenant tables may ship without RLS | A new table silently escapes the boundary | Review rule: every `tenant_id` table ships with policies in the same migration |
 | No email delivery | Password reset and verification are unavailable | `REQUIRE_EMAIL_VERIFICATION=false`; production requirement documented |
 | Windows dev requires selector event loop | Confusing "works on Linux" failures | Encoded in `run.py` and documented |

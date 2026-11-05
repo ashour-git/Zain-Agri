@@ -53,6 +53,13 @@ class ConflictError(AppError):
     code = "conflict"
 
 
+class UnprocessableError(AppError):
+    """The request is well-formed but violates a domain rule."""
+
+    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    code = "unprocessable"
+
+
 class TooManyRequestsError(AppError):
     status_code = status.HTTP_429_TOO_MANY_REQUESTS
     code = "rate_limited"

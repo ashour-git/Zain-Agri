@@ -1,7 +1,7 @@
 # ZAIN AGRI — RBAC
 
-Status: Sprint 02
-Last updated: 2026-10-31
+Status: Sprint 03
+Last updated: 2026-11-01
 
 Authorisation answers "may this person perform this action in this workspace?".
 It is enforced **only on the server**, from live database state. The web UI
@@ -35,27 +35,43 @@ User ──< Membership >── Tenant
 | `tenant.settings.manage` | ✅ | — | — | — |
 | `users.manage` | ✅ | — | — | — |
 | `finance.view` | ✅ | — | — | — |
-| `inventory.manage` | ✅ | ✅ | — | ✅ |
+| `products.read` | ✅ | ✅ | ✅ | ✅ |
+| `products.create` | ✅ | ✅ | — | ✅ |
+| `products.update` | ✅ | ✅ | — | ✅ |
+| `products.archive` | ✅ | ✅ | — | ✅ |
+| `categories.manage` | ✅ | ✅ | — | ✅ |
+| `inventory.read` | ✅ | ✅ | ✅ | ✅ |
+| `inventory.adjust` | ✅ | ✅ | — | ✅ |
+| `inventory.view_cost` | ✅ | — | — | — |
+| `batches.manage` | ✅ | ✅ | — | ✅ |
+| `audit.read` | ✅ | — | — | — |
 | `purchases.manage` | ✅ | ✅ | — | — |
 | `sales.operate` | ✅ | ✅ | ✅ | — |
 | `sales.refund` | ✅ | ✅ | — | — |
 | `reports.view` | ✅ | ✅ | — | ✅ |
 
-Source of truth: `apps/api/app/modules/authorization/permissions.py`.
+Source of truth: `apps/api/app/modules/authorization/permissions.py` (17
+permissions).
 
 ### Role intent
 
 | Role | Intent | Deliberate exclusions |
 |---|---|---|
 | `OWNER` | Full control of the business | — |
-| `MANAGER` | Runs day-to-day operations | Cannot change workspace settings, manage users, or see financials |
-| `CASHIER` | Sells at the counter | No refunds, no inventory edits, no financial visibility |
-| `INVENTORY_MANAGER` | Stock and purchasing visibility | No sales, no refunds, no money visibility |
+| `MANAGER` | Runs day-to-day operations, including the catalog and stock | Cannot change workspace settings, manage users, see cost or financials, or read the audit trail |
+| `CASHIER` | Sells at the counter and looks up products/stock | No catalog edits, no stock adjustments, no cost, no refunds |
+| `INVENTORY_MANAGER` | Owns the catalog and the stock room | No sales, no refunds, no cost, no financials |
 
-`finance.view` is owner-only by design. The brief asks for restricted financial
-visibility for cashiers and inventory managers; the strictest correct reading of
-"restricted" for a pilot is "none". Widening it is a one-line policy change once
-the finance screens exist and the owner confirms what staff should see.
+`finance.view`, `inventory.view_cost` and `audit.read` are owner-only by design.
+The brief asks for restricted financial visibility for cashiers and inventory
+managers; the strictest correct reading of "restricted" for a pilot is "none".
+Widening any of them is a one-line policy change once the owner confirms what
+staff should see.
+
+Cost visibility is enforced twice: the API returns `cost_price: null` for
+callers without `inventory.view_cost`, and rejects a write to `cost_price` that
+the role may not see. The frontend hides the column, which is a usability
+feature only.
 
 ## 3. Enforcement
 
@@ -112,7 +128,7 @@ The rule for reviewers: a business module may import `Permission` and
 authorisation decision. If a check needs a role comparison, the policy table is
 missing a permission — add one there.
 
-Current protected surface (Sprint 02 intentionally ships no product modules):
+Current protected surface:
 
 | Endpoint | Permission |
 |---|---|
@@ -120,7 +136,27 @@ Current protected surface (Sprint 02 intentionally ships no product modules):
 | `GET /api/v1/tenants/current/members` | `users.manage` |
 | `GET /api/v1/tenants/current` | any active membership |
 | `GET /api/v1/tenants/current/permissions` | any active membership |
+| `GET /api/v1/units` | `products.read` |
+| `GET /api/v1/categories` | `products.read` |
+| `POST /api/v1/categories` | `categories.manage` |
+| `PATCH /api/v1/categories/{id}` | `categories.manage` |
+| `GET /api/v1/brands` | `products.read` |
+| `POST /api/v1/brands` | `categories.manage` |
+| `GET /api/v1/products`, `GET /api/v1/products/{id}` | `products.read` |
+| `POST /api/v1/products` | `products.create` |
+| `PATCH /api/v1/products/{id}` | `products.update` |
+| `POST /api/v1/products/{id}/conversions` | `products.update` |
+| `DELETE /api/v1/products/{id}`, `POST /api/v1/products/{id}/restore` | `products.archive` |
+| `GET /api/v1/inventory`, `GET /api/v1/inventory/{product_id}` | `inventory.read` |
+| `GET /api/v1/inventory/movements`, `GET /api/v1/inventory/batches` | `inventory.read` |
+| `POST /api/v1/inventory/adjustments` | `inventory.adjust` |
+| `POST /api/v1/inventory/batches` | `batches.manage` |
+| `GET /api/v1/audit` | `audit.read` |
 | `GET/POST /api/v1/auth/*` | authentication, not RBAC |
+
+Cost visibility is a **field-level** rule on top of these permissions, not a
+separate endpoint: `cost_price` and `unit_cost` are `null` unless the caller
+holds `inventory.view_cost`.
 
 ## 4. Role changes take effect immediately
 
@@ -145,9 +181,9 @@ The tests that prove this:
 
 ## 5. What is not built yet
 
-The brief allows MANAGER permissions to be "configurable by the owner". Sprint
-02 ships a **fixed** policy table instead of a per-tenant override editor. The
-reason: building an override UI and storage before any product module exists
+The brief allows MANAGER permissions to be "configurable by the owner". The
+current policy table is **fixed**. The reason: building an override UI and
+storage before the owner confirms which staff should see cost and financial data
 would be speculative, and an override system that is wrong is worse than a small
 correct matrix.
 
@@ -164,17 +200,21 @@ non-reducible (see below).
 Other deliberate gaps:
 
 1. **No invitation or member-management write endpoints.** `OWNER` can list
-   members; adding or removing them is a Sprint 03 task with its own audit
-   requirements.
+   members; adding or removing them needs its own audit requirements.
 2. **No last-owner protection.** Nothing in the schema prevents a tenant from
    ending up with zero owners, because no endpoint can currently change roles.
    Add a partial unique index or a transaction-level check with the invite flow.
 3. **No ownership transfer.** Needs an explicit, audited operation.
 4. **No per-user permission grants.** Permissions are role-derived only.
-5. **No UI route map.** Because no product routes exist yet, there is nothing to
-   gate beyond the settings page. When modules land, the frontend should read
-   `permissions` from `/auth/me` and hide links — while the API remains the
-   enforcer.
+5. **Cost and audit permissions are owner-only.** `inventory.view_cost` and
+   `audit.read` are not granted to MANAGER or INVENTORY_MANAGER. This is the
+   strictest reading of "restricted financial visibility" and is easy to widen
+   once the owner decides.
+6. **No audit screen.** The catalog and inventory UIs gate their controls with
+   `permissions` from the session, but the audit feed (`audit.read`) is API-only.
+
+The frontend reads `permissions` from `/auth/me` and hides links and buttons —
+which remains a usability feature, never the enforcement point.
 
 ## 6. Adding a permission
 

@@ -1,6 +1,6 @@
 # ZAIN AGRI — Architecture Decisions
 
-Status: Sprint 02
+Status: Sprint 03
 Last updated: 2026-10-31
 
 > One record per decision that would be expensive to reverse, or that a new
@@ -435,3 +435,107 @@ and it must remain read-only. Any SQL injection in the app could call it with
 another user id and enumerate workspace names — accepted because all queries are
 parameter-bound, and documented in `TENANT_ISOLATION.md`. `PUBLIC` execute and a
 pinned `search_path` are tested.
+
+---
+
+## ADR-019 — Units of measure are global reference data
+
+**Status:** Accepted · **Date:** 2026-11-01
+
+**Context.** Every tenant needs kilograms, grams, litres and pieces. Two options:
+copy the unit rows per tenant, or keep one global vocabulary.
+
+**Decision.** `units_of_measure` has no `tenant_id`. It is seeded by migration
+`0004_catalog`, and `grants.sql` revokes `INSERT/UPDATE/DELETE` from `zain_app`.
+A unit carries a `dimension` (`count`, `mass`, `volume`).
+
+**Why.** A per-tenant copy produces divergent ids for the same physical unit, no
+way to compare stock across workspaces, and a seeding bug per signup. Units are
+not business data the store should own.
+
+**Consequences.** Adding a unit is a migration, not an admin action. A future
+custom unit (e.g. "sack") must either become global or introduce a tenant-owned
+extension — and that decision needs the owner's real packaging.
+
+---
+
+## ADR-020 — Product conversions are explicit and must involve the base unit
+
+**Status:** Accepted · **Date:** 2026-11-01
+
+**Context.** A product may be bought in sacks and sold in kilograms. Chaining
+conversions (bag → kg → g) is ambiguous when packaging varies.
+
+**Decision.** `product_unit_conversions(tenant_id, product_id, from_unit_id,
+to_unit_id, factor)` where `1 from = factor to`. At least one side must be the
+product's base unit; both units must share a dimension. No chain is inferred.
+
+**Why.** The ledger stores one quantity: `base_quantity`. Inferring a chain would
+mean trusting a factor nobody typed for this product.
+
+**Consequences.** A user who wants "1 sack = 25 kg" and "1 kg = 1000 g" records
+the sack conversion against the base unit directly. Adding a chain resolver later
+is additive, but existing rows stay valid.
+
+---
+
+## ADR-021 — Inventory is an append-only ledger with a same-transaction projection
+
+**Status:** Accepted · **Date:** 2026-11-01
+
+**Context.** Stock must be explainable months later, and must survive concurrent
+adjustments from two devices.
+
+**Decision.** `stock_movements` is append-only and authoritative;
+`inventory_balances` is a projection written only by `inventory/service.py`, in
+the same transaction, after `SELECT … FOR UPDATE` on the balance row. Negative
+product and batch balances are rejected.
+
+**Why.** A mutable stock number cannot answer "why is it 3?". A projection keeps
+listing cheap without making the ledger optional. The row lock is the smallest
+mechanism that makes the read-check-write sequence race-free per product.
+
+**Consequences.** Corrections are compensating movements; there is no update or
+delete path. Future modules (purchases, sales) must call `record_movement` rather
+than write balances. Reconciliation is a query, not a repair endpoint.
+
+---
+
+## ADR-022 — Append-only is enforced by trigger *and* revoked privileges
+
+**Status:** Accepted · **Date:** 2026-11-01
+
+**Context.** "Do not update history" is a convention until the database enforces
+it. The runtime role is the only role the request process can use.
+
+**Decision.** `app_block_mutation()` raises on `UPDATE`/`DELETE` for
+`stock_movements` and `audit_logs`; `grants.sql` additionally revokes
+`UPDATE, DELETE, TRUNCATE` from `zain_app`.
+
+**Why.** The two controls fail differently: the revoke stops the statement before
+it runs, the trigger stops it even if a future grant is too broad. Migrations
+still can — deliberately — drop the trigger.
+
+**Consequences.** A data-fix script must run as the owner, with a migration, and
+is therefore reviewable. A test asserts the runtime role is refused.
+
+---
+
+## ADR-023 — Audit is written inside the business transaction; reads are permission-gated
+
+**Status:** Accepted · **Date:** 2026-11-01
+
+**Context.** An audit trail that can be missing a row, or written after commit, is
+not evidence.
+
+**Decision.** `audit.record()` flushes only; the caller commits. Every catalog and
+inventory mutation writes one row with actor, action, entity, before/after and
+metadata. There is no write endpoint. `GET /audit` requires `audit.read`
+(OWNER-only). Sensitive keys are dropped at any depth.
+
+**Why.** Same-transaction writing means a business change cannot exist without its
+trail, and a rejected operation leaves no row. Dropping keys rather than masking
+them means a secret cannot be recovered from the column.
+
+**Consequences.** Every new module takes an `audit` dependency. Volume grows with
+mutations, so retention and partitioning are launch tasks.

@@ -54,7 +54,7 @@ function WorkspaceRow({
 
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-semibold text-ink">{workspace.name}</span>
-        <span className="block truncate text-[11px] text-ink-muted" dir="ltr">
+        <span className="block truncate text-xs text-ink-muted" dir="ltr">
           {workspace.slug}
         </span>
       </span>
@@ -148,7 +148,7 @@ function SelectTenantContent() {
             onClick={() => {
               void signOut().then(() => router.replace("/login"));
             }}
-            className="ms-auto inline-flex items-center gap-2 rounded-full border border-white/15 px-3 py-1.5 text-[11px] text-brand-100 transition-colors hover:bg-white/5 hover:text-white"
+            className="ms-auto inline-flex items-center gap-2 rounded-full border border-white/15 px-3 py-1.5 text-xs text-brand-100 transition-colors hover:bg-white/5 hover:text-white"
           >
             <LogOut className="size-3.5" aria-hidden="true" />
             تسجيل الخروج
@@ -160,7 +160,7 @@ function SelectTenantContent() {
             <div className="space-y-1 text-center">
               <h1 className="text-xl font-bold text-white sm:text-2xl">اختر مساحة عمل</h1>
               <p className="text-xs text-brand-200">
-                مرحباً {session?.user.full_name || "بك"} — الحساب مرتبط بأكثر من متجر.
+                مرحباً {session?.user.full_name || "بك"}، الحساب مرتبط بأكثر من متجر.
               </p>
             </div>
 
@@ -224,8 +224,8 @@ function SelectTenantContent() {
           </div>
         </div>
 
-        <p className="text-center text-[11px] text-brand-300/70">
-          ZAIN AGRI — جلسة آمنة عبر ملف تعريف ارتباط HttpOnly
+        <p className="text-center text-xs text-brand-300/70">
+          ZAIN AGRI - جلسة آمنة عبر ملف تعريف ارتباط HttpOnly
         </p>
       </div>
     </div>
