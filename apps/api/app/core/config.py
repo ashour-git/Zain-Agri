@@ -68,6 +68,9 @@ class Settings(BaseSettings):
     # Session refresh happens on every page load, from every till and phone
     # behind the shop's single IP. Same window, far higher ceiling.
     refresh_rate_limit_attempts: int = 120
+    # Behind Vercel or a load balancer, read the client IP from proxy headers
+    # (app/core/client_ip.py). Never enable when clients can reach the API directly.
+    trust_proxy_headers: bool = False
 
     # Shop assistant (Groq). Without a key the feature is off and invisible.
     groq_api_key: SecretStr | None = None

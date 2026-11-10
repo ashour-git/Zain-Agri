@@ -12,6 +12,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.client_ip import client_ip
 from app.core.config import Settings, get_settings
 from app.core.errors import ForbiddenError, TooManyRequestsError, UnauthorizedError
 from app.core.ratelimit import auth_limiter
@@ -38,10 +39,6 @@ SessionDep = Annotated[AsyncSession, Depends(get_session)]
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 
 
-def _client_ip(request: Request) -> str:
-    return request.client.host if request.client else "unknown"
-
-
 def _throttle(
     request: Request,
     settings: Settings,
@@ -50,7 +47,7 @@ def _throttle(
     subject: str = "",
     limit: int | None = None,
 ) -> None:
-    key = f"{scope}:{_client_ip(request)}:{subject.strip().lower()}"
+    key = f"{scope}:{client_ip(request)}:{subject.strip().lower()}"
     if not auth_limiter.allow(
         key,
         limit=limit if limit is not None else settings.auth_rate_limit_attempts,
@@ -61,7 +58,7 @@ def _throttle(
             extra={
                 "event": "auth.rate_limited",
                 "path": request.url.path,
-                "ip": _client_ip(request),
+                "ip": client_ip(request),
             },
         )
         raise TooManyRequestsError(

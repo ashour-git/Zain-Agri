@@ -23,6 +23,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp
 
+from app.core.client_ip import client_ip
 from app.core.errors import error_body
 
 logger = logging.getLogger("zain.security")
@@ -60,7 +61,7 @@ class OriginGuardMiddleware(BaseHTTPMiddleware):
                 extra={
                     "event": "auth.csrf_rejected",
                     "path": request.url.path,
-                    "ip": request.client.host if request.client else None,
+                    "ip": client_ip(request),
                 },
             )
             return JSONResponse(
