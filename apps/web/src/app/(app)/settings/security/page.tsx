@@ -26,13 +26,16 @@ import {
   type SessionInfo,
 } from "@/lib/types";
 
+// Built once: constructing an Intl formatter is far costlier than using one.
+const DATE_TIME = new Intl.DateTimeFormat("ar-EG-u-nu-latn", {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+
 function formatDate(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("ar-EG-u-nu-latn", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
+  return DATE_TIME.format(date);
 }
 
 function deviceLabel(userAgent: string | null): string {

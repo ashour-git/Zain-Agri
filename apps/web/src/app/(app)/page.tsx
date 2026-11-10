@@ -27,6 +27,13 @@ function optional<T>(allowed: boolean, load: () => Promise<T>): Promise<T | null
   return allowed ? load().catch(() => null) : Promise.resolve(null);
 }
 
+// Built once: constructing an Intl formatter is far costlier than using one.
+const TODAY = new Intl.DateTimeFormat("ar-EG-u-nu-latn", {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+});
+
 function greeting(): string {
   return new Date().getHours() < 12 ? "صباح الخير" : "مساء الخير";
 }
@@ -73,9 +80,7 @@ export default function DashboardPage() {
         <p className="text-sm text-ink-muted">
           {greeting()}
           {firstName ? ` يا ${firstName}` : ""}،{" "}
-          {new Intl.DateTimeFormat("ar-EG-u-nu-latn", { weekday: "long", day: "numeric", month: "long" }).format(
-            new Date(),
-          )}
+          {TODAY.format(new Date())}
         </p>
         <div className="flex flex-wrap gap-2">
           <button

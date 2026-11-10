@@ -1,10 +1,9 @@
 "use client";
 
 import { Archive, Loader2, PackageSearch, Pencil, Plus, RotateCcw, Tags } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 
-import { ProductDialog } from "@/components/catalog/product-dialog";
-import { TaxonomyDialog } from "@/components/catalog/taxonomy-dialog";
 import { StockGauge } from "@/components/inventory/stock-gauge";
 import { Badge } from "@/components/ui/badge";
 import { buttonClass } from "@/components/ui/button";
@@ -25,8 +24,17 @@ import { FormError, FormNotice } from "@/components/ui/field";
 import { ApiRequestError, apiRequest } from "@/lib/api";
 import { useAuth } from "@/lib/auth-provider";
 import { formatMoney, toNumber } from "@/lib/catalog";
+import { getBrands, getCategories, getUnits } from "@/lib/reference";
 import type { Brand, Category, Product, ProductDetail, ProductList, UnitOfMeasure } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+// Dialogs download on first open; most visits never open them.
+const ProductDialog = dynamic(() => import("@/components/catalog/product-dialog").then((module) => module.ProductDialog), {
+  ssr: false,
+});
+const TaxonomyDialog = dynamic(() => import("@/components/catalog/taxonomy-dialog").then((module) => module.TaxonomyDialog), {
+  ssr: false,
+});
 
 const PAGE_SIZE = 25;
 
@@ -40,11 +48,11 @@ const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
 
 type Reference = { units: UnitOfMeasure[]; categories: Category[]; brands: Brand[] };
 
-async function fetchReference(): Promise<Reference> {
+async function fetchReference(tenantId: string, force = false): Promise<Reference> {
   const [units, categories, brands] = await Promise.all([
-    apiRequest<UnitOfMeasure[]>("/api/v1/units"),
-    apiRequest<Category[]>("/api/v1/categories"),
-    apiRequest<Brand[]>("/api/v1/brands"),
+    getUnits(),
+    getCategories(tenantId, force),
+    getBrands(tenantId, force),
   ]);
   return { units, categories, brands };
 }
@@ -99,7 +107,7 @@ export default function ProductsPage() {
 
   useEffect(() => {
     let cancelled = false;
-    void fetchReference()
+    void fetchReference(tenantId)
       .then((next) => {
         if (!cancelled) setReference(next);
       })
@@ -132,7 +140,8 @@ export default function ProductsPage() {
 
   const loadReference = async () => {
     try {
-      setReference(await fetchReference());
+      // The taxonomy dialog just changed categories or brands: bypass the cache.
+      setReference(await fetchReference(tenantId, true));
     } catch {
       // The list still works without reference data; the form explains what is missing.
     }

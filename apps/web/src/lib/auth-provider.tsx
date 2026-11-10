@@ -6,10 +6,10 @@ import type { ReactNode } from "react";
 import {
   ApiRequestError,
   apiRequest,
-  getAccessToken,
   refreshAccessToken,
   setAccessToken,
 } from "@/lib/api";
+import { clearReferenceCache } from "@/lib/reference";
 import type { Session } from "@/lib/types";
 
 type AuthStatus = "loading" | "authenticated" | "unauthenticated";
@@ -48,6 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const clearSession = useCallback(() => {
+    clearReferenceCache();
     setAccessToken(null);
     setSession(null);
     setStatus("unauthenticated");
@@ -72,25 +73,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
 
     void (async () => {
+      // The refresh response already carries the user, shop, role and
+      // permissions, so there is no follow-up /auth/me round trip: every page
+      // load waits on one request before it can fetch its own data, not two.
       const refreshed = await refreshAccessToken();
       if (cancelled) return;
       if (!refreshed) {
         clearSession();
         return;
       }
-      try {
-        const me = await apiRequest<MeResponse>("/api/v1/auth/me");
-        if (cancelled) return;
-        setSession({
-          access_token: getAccessToken() ?? "",
-          token_type: "bearer",
-          expires_in: 0,
-          ...me,
-        });
-        setStatus("authenticated");
-      } catch {
-        if (!cancelled) clearSession();
-      }
+      setSession(refreshed);
+      setStatus("authenticated");
     })();
 
     return () => {

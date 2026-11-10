@@ -2,10 +2,9 @@
 
 import { Layers, Loader2, PackageSearch, Plus, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 
-import { AdjustmentDialog } from "@/components/inventory/adjustment-dialog";
-import { BatchDialog } from "@/components/inventory/batch-dialog";
 import { StockGauge } from "@/components/inventory/stock-gauge";
 import { Badge } from "@/components/ui/badge";
 import { buttonClass } from "@/components/ui/button";
@@ -26,6 +25,7 @@ import { FormError, FormNotice } from "@/components/ui/field";
 import { Modal } from "@/components/ui/modal";
 import { ApiRequestError, apiRequest } from "@/lib/api";
 import { useAuth } from "@/lib/auth-provider";
+import { getCategories, getUnits } from "@/lib/reference";
 import { MOVEMENT_LABELS, formatDate, formatDateTime, formatMoney, formatQuantity } from "@/lib/catalog";
 import type {
   Category,
@@ -36,6 +36,14 @@ import type {
   UnitOfMeasure,
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
+
+// Dialogs download on first open; most visits never open them.
+const AdjustmentDialog = dynamic(() => import("@/components/inventory/adjustment-dialog").then((module) => module.AdjustmentDialog), {
+  ssr: false,
+});
+const BatchDialog = dynamic(() => import("@/components/inventory/batch-dialog").then((module) => module.BatchDialog), {
+  ssr: false,
+});
 
 const PAGE_SIZE = 25;
 
@@ -48,11 +56,8 @@ const STOCK_FILTERS: { id: "" | StockStatus; label: string }[] = [
 
 type Reference = { units: UnitOfMeasure[]; categories: Category[] };
 
-async function fetchReference(): Promise<Reference> {
-  const [units, categories] = await Promise.all([
-    apiRequest<UnitOfMeasure[]>("/api/v1/units"),
-    apiRequest<Category[]>("/api/v1/categories"),
-  ]);
+async function fetchReference(tenantId: string): Promise<Reference> {
+  const [units, categories] = await Promise.all([getUnits(), getCategories(tenantId)]);
   return { units, categories };
 }
 
@@ -107,7 +112,7 @@ export default function InventoryPage() {
 
   useEffect(() => {
     let cancelled = false;
-    void fetchReference()
+    void fetchReference(tenantId)
       .then((next) => {
         if (!cancelled) setReference(next);
       })

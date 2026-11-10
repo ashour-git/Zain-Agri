@@ -10,13 +10,15 @@
  * callers) and replays the original request.
  */
 
+import type { Session } from "@/lib/types";
+
 // Same-origin by default: /api/* is proxied to the API (next.config.ts), which
 // keeps the SameSite=Lax refresh cookie first-party. Set NEXT_PUBLIC_API_BASE_URL
 // only to call an API on the same site directly (e.g. api.example.com).
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/+$/, "");
 
 let accessToken: string | null = null;
-let refreshInFlight: Promise<boolean> | null = null;
+let refreshInFlight: Promise<Session | null> | null = null;
 
 export class ApiRequestError extends Error {
   readonly status: number;
@@ -101,7 +103,14 @@ async function toError(response: Response): Promise<ApiRequestError> {
   return new ApiRequestError(response.status, code, message, body.error?.details);
 }
 
-export function refreshAccessToken(): Promise<boolean> {
+/**
+ * Rotate the session using the HttpOnly refresh cookie.
+ *
+ * Resolves to the full session (user, shop, role, permissions) that the
+ * server returns with the new token, or null when there is no valid session.
+ * Callers that only need "did it work?" can treat the result as truthy.
+ */
+export function refreshAccessToken(): Promise<Session | null> {
   if (refreshInFlight) return refreshInFlight;
 
   const attempt = (async () => {
@@ -114,14 +123,14 @@ export function refreshAccessToken(): Promise<boolean> {
       });
       if (!response.ok) {
         accessToken = null;
-        return false;
+        return null;
       }
-      const data = (await response.json()) as { access_token: string };
-      accessToken = data.access_token;
-      return true;
+      const session = (await response.json()) as Session;
+      accessToken = session.access_token;
+      return session;
     } catch {
       accessToken = null;
-      return false;
+      return null;
     }
   })();
 
