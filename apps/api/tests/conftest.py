@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 import pytest_asyncio
 from alembic.config import Config
+from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import make_url
@@ -107,13 +108,19 @@ def reset_rate_limiter() -> Iterator[None]:
     assistant_quota.reset()
 
 
-@pytest_asyncio.fixture
-async def client() -> AsyncIterator[AsyncClient]:
+@pytest.fixture
+def test_app() -> FastAPI:
+    """The app instance behind `client`, for tests that override dependencies."""
     from app.main import create_app
 
+    return create_app()
+
+
+@pytest_asyncio.fixture
+async def client(test_app: FastAPI) -> AsyncIterator[AsyncClient]:
     # A real browser always sends Origin on a state-changing request, and the
     # CSRF guard requires it once the refresh cookie is present.
-    transport = ASGITransport(app=create_app())
+    transport = ASGITransport(app=test_app)
     async with AsyncClient(
         transport=transport,
         base_url="http://localhost:3000",

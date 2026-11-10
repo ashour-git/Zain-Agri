@@ -60,6 +60,24 @@ class UnprocessableError(AppError):
     code = "unprocessable"
 
 
+class AssistantDisabledError(AppError):
+    status_code = status.HTTP_404_NOT_FOUND
+    code = "assistant_disabled"
+
+
+class AssistantQuotaError(AppError):
+    status_code = status.HTTP_429_TOO_MANY_REQUESTS
+    code = "assistant_quota_exceeded"
+
+    def __init__(self, message: str, *, retry_after: int) -> None:
+        super().__init__(message, headers={"Retry-After": str(retry_after)})
+
+
+class AssistantUnavailableError(AppError):
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    code = "assistant_unavailable"
+
+
 class TooManyRequestsError(AppError):
     status_code = status.HTTP_429_TOO_MANY_REQUESTS
     code = "rate_limited"
