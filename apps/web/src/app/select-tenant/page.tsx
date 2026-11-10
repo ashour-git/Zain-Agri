@@ -45,7 +45,7 @@ function WorkspaceRow({
       type="button"
       onClick={onSelect}
       disabled={busy || blocked}
-      className="flex w-full items-center gap-3 rounded-xl border border-line bg-white px-4 py-3 text-start transition
+      className="flex w-full items-center gap-3 rounded-md border border-line bg-white px-4 py-3 text-start transition
                  hover:border-brand-300 hover:bg-brand-50/40 disabled:cursor-not-allowed disabled:opacity-60"
     >
       <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-700">
@@ -54,7 +54,7 @@ function WorkspaceRow({
 
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-semibold text-ink">{workspace.name}</span>
-        <span className="block truncate text-xs text-ink-muted" dir="ltr">
+        <span className="hidden">
           {workspace.slug}
         </span>
       </span>
@@ -62,12 +62,12 @@ function WorkspaceRow({
       <span className="flex shrink-0 items-center gap-2">
         <Badge variant="brand">{ROLE_LABELS[workspace.role]}</Badge>
         {workspace.status !== "active" ? (
-          <Badge variant="neutral" className="bg-red-50 text-red-700 ring-red-200">
+          <Badge variant="danger">
             <ShieldAlert className="size-3" aria-hidden="true" />
             موقوفة
           </Badge>
         ) : workspace.membership_status !== "active" ? (
-          <Badge variant="neutral" className="bg-amber-50 text-amber-700 ring-amber-200">
+          <Badge variant="warning">
             عضوية غير نشطة
           </Badge>
         ) : (
@@ -129,17 +129,8 @@ function SelectTenantContent() {
   });
 
   return (
-    <div className="relative min-h-dvh overflow-hidden bg-brand-950">
-      <div
-        className="pointer-events-none absolute -left-24 -top-24 size-[28rem] rounded-full bg-brand-700/40 blur-3xl"
-        aria-hidden="true"
-      />
-      <div
-        className="pointer-events-none absolute -bottom-32 -right-16 size-[26rem] rounded-full bg-accent-500/10 blur-3xl"
-        aria-hidden="true"
-      />
-
-      <div className="relative mx-auto flex min-h-dvh w-full max-w-3xl flex-col px-5 py-8 sm:px-8">
+    <div className="min-h-dvh bg-surface">
+      <div className="relative mx-auto flex min-h-dvh w-full max-w-xl flex-col px-5 py-8 sm:px-8">
         <div className="flex items-center gap-3">
           <BrandMark />
           <BrandWordmark />
@@ -148,7 +139,7 @@ function SelectTenantContent() {
             onClick={() => {
               void signOut().then(() => router.replace("/login"));
             }}
-            className="ms-auto inline-flex items-center gap-2 rounded-full border border-white/15 px-3 py-1.5 text-xs text-brand-100 transition-colors hover:bg-white/5 hover:text-white"
+            className="ms-auto inline-flex min-h-10 items-center gap-2 rounded-md px-3 text-sm text-ink-muted transition-colors hover:bg-red-50 hover:text-red-700"
           >
             <LogOut className="size-3.5" aria-hidden="true" />
             تسجيل الخروج
@@ -158,27 +149,27 @@ function SelectTenantContent() {
         <div className="flex flex-1 items-center justify-center py-10">
           <div className="w-full space-y-5">
             <div className="space-y-1 text-center">
-              <h1 className="text-xl font-bold text-white sm:text-2xl">اختر مساحة عمل</h1>
-              <p className="text-xs text-brand-200">
-                مرحباً {session?.user.full_name || "بك"}، الحساب مرتبط بأكثر من متجر.
+              <h1 className="text-[26px] font-semibold text-ink">اختر مساحة عمل</h1>
+              <p className="text-sm text-ink-muted">
+                مرحباً {session?.user.full_name || "بك"}،{" "}
+                {workspaces.length === 0
+                  ? "أنشئ متجرك الأول للبدء."
+                  : "اختر المتجر الذي تريد العمل عليه."}
               </p>
             </div>
 
-            <Card className="border-white/10 bg-white/95 shadow-xl backdrop-blur">
+            <Card>
               <CardHeader className="p-5 pb-3">
-                <CardTitle className="text-sm">مساحات العمل المتاحة</CardTitle>
-                <CardDescription>
-                  يتحقّق الخادم من عضويتك في المتجر عند كل طلب؛ لا يمكن الوصول لمتجر آخر بتغيير
-                  المعرّف.
-                </CardDescription>
+                <CardTitle className="text-sm">متاجرك</CardTitle>
+                <CardDescription>يظهر هنا كل متجر أنت عضو فيه.</CardDescription>
               </CardHeader>
 
               <CardContent className="space-y-2.5 p-5 pt-0">
                 <FormError>{formError}</FormError>
 
                 {workspaces.length === 0 ? (
-                  <p className="rounded-xl border border-dashed border-line px-4 py-6 text-center text-xs text-ink-muted">
-                    لا توجد مساحات عمل بعد. أنشئ متجرك الأول من النموذج أدناه.
+                  <p className="rounded-md border border-dashed border-line px-4 py-6 text-center text-xs text-ink-muted">
+                    لا توجد متاجر بعد. أنشئ متجرك الأول من النموذج أدناه.
                   </p>
                 ) : (
                   workspaces.map((workspace) => (
@@ -195,14 +186,14 @@ function SelectTenantContent() {
               </CardContent>
             </Card>
 
-            <Card className="border-white/10 bg-white/95 shadow-xl backdrop-blur">
+            <Card>
               <CardHeader className="p-5 pb-3">
                 <CardTitle className="flex items-center gap-2 text-sm">
                   <PlusCircle className="size-4 text-brand-600" aria-hidden="true" />
                   إنشاء متجر جديد
                 </CardTitle>
                 <CardDescription>
-                  ستصبح مالك المتجر الجديد فوراً. تُنشأ مساحة العمل والعضوية في معاملة واحدة.
+                  ستصبح مالك المتجر الجديد فوراً، ويمكنك دعوة فريقك لاحقاً.
                 </CardDescription>
               </CardHeader>
 
@@ -224,8 +215,8 @@ function SelectTenantContent() {
           </div>
         </div>
 
-        <p className="text-center text-xs text-brand-300/70">
-          ZAIN AGRI - جلسة آمنة عبر ملف تعريف ارتباط HttpOnly
+        <p className="text-center text-xs text-ink-muted">
+          ZAIN AGRI - اتصال آمن
         </p>
       </div>
     </div>

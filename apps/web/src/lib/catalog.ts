@@ -2,13 +2,13 @@ import type { MovementType, StockStatus } from "@/lib/types";
 
 export const STOCK_LABELS: Record<StockStatus, string> = {
   out: "نفد",
-  low: "قارب النفاد",
+  low: "تحت الحد",
   ok: "متوفر",
 };
 
-export const STOCK_BADGE_VARIANTS: Record<StockStatus, "neutral" | "brand" | "lime"> = {
-  out: "neutral",
-  low: "brand",
+export const STOCK_BADGE_VARIANTS: Record<StockStatus, "danger" | "warning" | "lime"> = {
+  out: "danger",
+  low: "warning",
   ok: "lime",
 };
 
@@ -51,7 +51,7 @@ export function toNumber(value: string | null | undefined): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-const quantityFormatter = new Intl.NumberFormat("ar-EG", {
+const quantityFormatter = new Intl.NumberFormat("ar-EG-u-nu-latn", {
   maximumFractionDigits: 4,
 });
 
@@ -59,7 +59,7 @@ export function formatQuantity(value: string | null | undefined): string {
   return quantityFormatter.format(toNumber(value));
 }
 
-const moneyFormatter = new Intl.NumberFormat("ar-EG", {
+const moneyFormatter = new Intl.NumberFormat("ar-EG-u-nu-latn", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
@@ -73,14 +73,14 @@ export function formatDate(value: string | null | undefined): string {
   if (!value) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("ar-EG", { dateStyle: "medium" }).format(date);
+  return new Intl.DateTimeFormat("ar-EG-u-nu-latn", { dateStyle: "medium" }).format(date);
 }
 
 export function formatDateTime(value: string | null | undefined): string {
   if (!value) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("ar-EG", {
+  return new Intl.DateTimeFormat("ar-EG-u-nu-latn", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);

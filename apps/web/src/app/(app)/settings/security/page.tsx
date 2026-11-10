@@ -29,7 +29,7 @@ import {
 function formatDate(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("ar-EG", {
+  return new Intl.DateTimeFormat("ar-EG-u-nu-latn", {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
@@ -72,7 +72,7 @@ function Row({
   mono?: boolean;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-xl border border-line bg-white px-4 py-3">
+    <div className="flex items-start gap-3 rounded-md border border-line bg-white px-4 py-3">
       <span className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-700">
         <Icon className="size-4" aria-hidden="true" />
       </span>
@@ -211,18 +211,18 @@ export default function SecuritySettingsPage() {
 
         <CardContent className="space-y-2.5">
           {sessions === null ? (
-            <p className="rounded-xl border border-dashed border-line px-4 py-6 text-center text-xs text-ink-muted">
+            <p className="rounded-md border border-dashed border-line px-4 py-6 text-center text-xs text-ink-muted">
               جارٍ تحميل الجلسات…
             </p>
           ) : sessions.length === 0 ? (
-            <p className="rounded-xl border border-dashed border-line px-4 py-6 text-center text-xs text-ink-muted">
+            <p className="rounded-md border border-dashed border-line px-4 py-6 text-center text-xs text-ink-muted">
               لا توجد جلسات نشطة.
             </p>
           ) : (
             sessions.map((row) => (
               <div
                 key={row.id}
-                className="flex flex-wrap items-center gap-3 rounded-xl border border-line bg-white px-4 py-3"
+                className="flex flex-wrap items-center gap-3 rounded-md border border-line bg-white px-4 py-3"
               >
                 <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-700">
                   <Monitor className="size-4" aria-hidden="true" />
@@ -248,7 +248,7 @@ export default function SecuritySettingsPage() {
                     void revoke(row);
                   }}
                   disabled={busyId !== null || revokingAll}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-line px-2.5 py-1.5 text-xs text-ink-muted transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 min-h-9 rounded-lg border border-line px-2.5 text-xs text-ink-muted transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Trash2 className="size-3.5" aria-hidden="true" />
                   {busyId === row.id ? "جارٍ الإنهاء…" : "إنهاء"}
@@ -264,7 +264,7 @@ export default function SecuritySettingsPage() {
                 void revokeEverywhere();
               }}
               disabled={revokingAll || busyId !== null}
-              className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-md bg-brand-700 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <ShieldCheck className="size-4" aria-hidden="true" />
               {revokingAll ? "جارٍ الإنهاء…" : "إنهاء كل الجلسات"}
@@ -275,7 +275,7 @@ export default function SecuritySettingsPage() {
               onClick={() => {
                 void signOut().then(() => router.replace("/login"));
               }}
-              className="inline-flex items-center gap-2 rounded-xl border border-line px-4 py-2 text-xs text-ink-muted transition-colors hover:text-brand-700"
+              className="inline-flex items-center gap-2 rounded-md border border-line px-4 py-2 text-xs text-ink-muted transition-colors hover:text-brand-700"
             >
               <LogOut className="size-4" aria-hidden="true" />
               تسجيل الخروج من هذا الجهاز
@@ -292,7 +292,7 @@ export default function SecuritySettingsPage() {
               صلاحيات دورك
             </CardTitle>
             <CardDescription>
-              تُطبَّق هذه الصلاحيات على الخادم فقط؛ إخفاء زر في الواجهة ليس حماية.
+              ما يمكنك فعله في هذا المتجر. لتغييرها تواصل مع مالك المتجر.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">
@@ -314,14 +314,10 @@ export default function SecuritySettingsPage() {
         </CardHeader>
         <CardContent>
           <ul className="space-y-2 text-xs leading-relaxed text-brand-900/80">
-            <li>
-              رمز التجديد يُخزَّن في ملف تعريف ارتباط <strong>HttpOnly</strong> ولا يمكن لأي
-              جافاسكربت قراءته.
-            </li>
-            <li>رمز الوصول قصير العمر ويُحفظ في ذاكرة الصفحة فقط، ولا يُخزَّن في localStorage.</li>
-            <li>يُستبدل رمز التجديد عند كل استخدام، وإعادة استخدام رمز قديم تُلغي العائلة كلها.</li>
-            <li>طلبات التغيير القادمة من أصل غير مسموح به تُرفض (حماية CSRF).</li>
-            <li>كل استعلام على بيانات المتجر محكوم بسياسة RLS على مستوى PostgreSQL.</li>
+            <li>لا نحفظ رموز الدخول في مكان يمكن لأي موقع أو إضافة متصفح قراءته.</li>
+            <li>تنتهي صلاحية رمز الدخول سريعاً ويتجدد تلقائياً أثناء استخدامك للتطبيق.</li>
+            <li>إذا سُرق رمز قديم وحاول أحد استخدامه، تُغلق كل جلساتك فوراً.</li>
+            <li>بيانات متجرك معزولة تماماً، ولا يمكن لأي متجر آخر رؤيتها.</li>
           </ul>
         </CardContent>
       </Card>

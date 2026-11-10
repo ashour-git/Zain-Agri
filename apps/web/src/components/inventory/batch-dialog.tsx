@@ -92,7 +92,7 @@ export function BatchDialog({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl border border-line px-4 py-2 text-xs text-ink-muted transition-colors hover:text-ink"
+            className="rounded-md border border-line px-4 py-2 text-xs text-ink-muted transition-colors hover:text-ink"
           >
             إلغاء
           </button>
@@ -100,7 +100,7 @@ export function BatchDialog({
             type="button"
             onClick={() => void submit()}
             disabled={pending}
-            className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-md bg-brand-700 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {pending ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : null}
             إضافة الدفعة

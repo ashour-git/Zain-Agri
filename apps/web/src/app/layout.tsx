@@ -1,17 +1,12 @@
 import type { Metadata, Viewport } from "next";
-import { IBM_Plex_Sans_Arabic } from "next/font/google";
 import type { ReactNode } from "react";
 
 import { AuthProvider } from "@/lib/auth-provider";
 
-import "./globals.css";
+// Self-hosted: the font ships with the app and never depends on reaching Google at runtime.
+import "@fontsource-variable/readex-pro";
 
-const arabic = IBM_Plex_Sans_Arabic({
-  subsets: ["arabic", "latin"],
-  weight: ["300", "400", "500", "600", "700"],
-  variable: "--font-arabic",
-  display: "swap",
-});
+import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
@@ -23,12 +18,12 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#04241a",
+  themeColor: "#f6f7f4",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="ar" dir="rtl" className={arabic.variable}>
+    <html lang="ar" dir="rtl">
       <body className="min-h-dvh font-sans antialiased">
         <AuthProvider>{children}</AuthProvider>
       </body>

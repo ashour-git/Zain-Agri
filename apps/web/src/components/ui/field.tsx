@@ -3,8 +3,8 @@ import type { ComponentProps } from "react";
 import { cn } from "@/lib/utils";
 
 export const controlClass = cn(
-  "w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-sm text-ink shadow-sm outline-none transition",
-  "placeholder:text-ink-muted/60 focus:border-brand-500 focus:ring-2 focus:ring-brand-200",
+  "min-h-10 w-full rounded-md border border-line-strong bg-panel px-3 py-2 text-sm text-ink outline-none transition-colors",
+  "placeholder:text-ink-muted/70 hover:border-brand-300 focus:border-brand-600 focus:ring-2 focus:ring-brand-100",
 );
 
 export function Field({
@@ -20,7 +20,7 @@ export function Field({
 
   return (
     <div className="space-y-1.5">
-      <label htmlFor={inputId} className="block text-xs font-medium text-ink">
+      <label htmlFor={inputId} className="block text-[13px] font-medium text-ink">
         {label}
       </label>
       <input
@@ -56,7 +56,7 @@ export function SelectField({
 
   return (
     <div className="space-y-1.5">
-      <label htmlFor={selectId} className="block text-xs font-medium text-ink">
+      <label htmlFor={selectId} className="block text-[13px] font-medium text-ink">
         {label}
       </label>
       <select
@@ -91,7 +91,7 @@ export function TextareaField({
 
   return (
     <div className="space-y-1.5">
-      <label htmlFor={textareaId} className="block text-xs font-medium text-ink">
+      <label htmlFor={textareaId} className="block text-[13px] font-medium text-ink">
         {label}
       </label>
       <textarea
@@ -114,7 +114,7 @@ export function SubmitButton({
   return (
     <button
       className={cn(
-        "inline-flex w-full items-center justify-center gap-2 rounded-xl bg-brand-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition",
+        "inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-brand-700 px-4 text-sm font-semibold text-white transition-colors",
         "hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-60",
         className,
       )}
@@ -137,7 +137,7 @@ export function FormError({ children }: { children?: string | null }) {
   return (
     <div
       role="alert"
-      className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs leading-relaxed text-red-700"
+      className="rounded-md border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs leading-relaxed text-red-700"
     >
       {children}
     </div>
@@ -149,7 +149,7 @@ export function FormNotice({ children }: { children?: string | null }) {
   return (
     <div
       role="status"
-      className="rounded-xl border border-brand-200 bg-brand-50 px-3.5 py-2.5 text-xs leading-relaxed text-brand-800"
+      className="rounded-md border border-brand-200 bg-brand-50 px-3.5 py-2.5 text-xs leading-relaxed text-brand-800"
     >
       {children}
     </div>

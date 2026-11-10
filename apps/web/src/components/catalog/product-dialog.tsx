@@ -193,7 +193,7 @@ export function ProductDialog({
       onClose={onClose}
       wide
       title={product ? `تعديل ${product.name_ar}` : "منتج جديد"}
-      description="الأسعار والكميات تُخزَّن بدقة عشرية على الخادم. الوحدة الأساسية هي وحدة كل حركة مخزون."
+      description="الوحدة الأساسية هي الوحدة التي يُحسب بها رصيد المخزون وكل حركاته."
     >
       <div className="space-y-4">
         <FormError>{error}</FormError>
@@ -303,7 +303,7 @@ export function ProductDialog({
             value={form.minimum_stock}
             onChange={(event) => update("minimum_stock", event.target.value)}
           />
-          <label className="flex items-center gap-2 self-end rounded-xl border border-line bg-surface/60 px-3.5 py-2.5 text-xs text-ink">
+          <label className="flex items-center gap-2 self-end rounded-md border border-line bg-surface/60 px-3.5 py-2.5 text-xs text-ink">
             <input
               type="checkbox"
               checked={form.tracks_batches}
@@ -323,7 +323,7 @@ export function ProductDialog({
         />
 
         {product ? (
-          <section className="space-y-3 rounded-xl border border-line bg-surface/40 p-4">
+          <section className="space-y-3 rounded-md border border-line bg-surface/40 p-4">
             <div>
               <h3 className="text-xs font-semibold text-ink">تحويلات الوحدات</h3>
               <p className="mt-1 text-xs leading-relaxed text-ink-muted">
@@ -391,7 +391,7 @@ export function ProductDialog({
                 type="button"
                 onClick={() => void addConversion()}
                 disabled={conversionPending || conversionDraft.from === conversionDraft.to}
-                className="mt-5 inline-flex h-[42px] items-center justify-center gap-1.5 rounded-xl border border-line bg-white px-3 text-xs font-semibold text-brand-700 transition-colors hover:border-brand-300 disabled:cursor-not-allowed disabled:opacity-50"
+                className="mt-5 inline-flex h-[42px] items-center justify-center gap-1.5 rounded-md border border-line bg-white px-3 text-xs font-semibold text-brand-700 transition-colors hover:border-brand-300 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {conversionPending ? (
                   <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
@@ -410,7 +410,7 @@ export function ProductDialog({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl border border-line px-4 py-2 text-xs text-ink-muted transition-colors hover:text-ink"
+            className="rounded-md border border-line px-4 py-2 text-xs text-ink-muted transition-colors hover:text-ink"
           >
             إلغاء
           </button>
@@ -418,7 +418,7 @@ export function ProductDialog({
             type="button"
             onClick={() => void submit()}
             disabled={pending}
-            className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-md bg-brand-700 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {pending ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : null}
             {product ? "حفظ التعديلات" : "إضافة المنتج"}

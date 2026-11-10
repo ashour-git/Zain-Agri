@@ -47,13 +47,13 @@ export default function LoginPage() {
   });
 
   return (
-    <Card className="border-white/10 bg-white/95 shadow-xl backdrop-blur">
-      <CardHeader className="space-y-1 p-6 pb-2">
-        <CardTitle className="text-lg">تسجيل الدخول</CardTitle>
-        <CardDescription>ادخل إلى مساحة عمل متجرك باستخدام بريدك وكلمة المرور.</CardDescription>
+    <Card className="border-0 bg-transparent">
+      <CardHeader className="space-y-1.5 p-0 pb-7">
+        <CardTitle className="text-[26px] font-semibold leading-tight">تسجيل الدخول</CardTitle>
+        <CardDescription>أدخل بريدك وكلمة المرور للدخول إلى متجرك.</CardDescription>
       </CardHeader>
 
-      <CardContent className="p-6 pt-4">
+      <CardContent className="p-0">
         <form onSubmit={onSubmit} className="space-y-4" noValidate>
           <FormError>{formError}</FormError>
 
@@ -82,15 +82,15 @@ export default function LoginPage() {
           </SubmitButton>
         </form>
 
-        <div className="mt-5 space-y-3 border-t border-line pt-4 text-xs text-ink-muted">
+        <div className="mt-6 space-y-3 border-t border-line pt-5 text-sm text-ink-muted">
           <p>
             ليس لديك حساب؟{" "}
             <a href="/register" className="font-semibold text-brand-700 hover:underline">
               أنشئ متجرك الآن
             </a>
           </p>
-          <p className="leading-relaxed text-xs">
-            نستخدم ملف تعريف ارتباط HttpOnly لجلسة التجديد، ولا نحفظ رموز الدخول في المتصفح.
+          <p className="leading-relaxed text-[13px]">
+            جلستك محمية، ولا نحفظ كلمة المرور أو رموز الدخول على جهازك.
           </p>
         </div>
       </CardContent>

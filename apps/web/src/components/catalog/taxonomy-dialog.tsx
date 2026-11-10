@@ -75,7 +75,7 @@ export function TaxonomyDialog({
       description="التصنيف والعلامة يظهران في بحث المنتجات وتقارير المخزون."
     >
       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-2 rounded-xl bg-surface p-1">
+        <div className="grid grid-cols-2 gap-2 rounded-md bg-surface p-1">
           {(
             [
               { id: "category", label: "تصنيف" },
@@ -90,7 +90,7 @@ export function TaxonomyDialog({
                 reset();
               }}
               className={`rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
-                mode === tab.id ? "bg-white text-brand-800 shadow-sm" : "text-ink-muted"
+                mode === tab.id ? "bg-white text-brand-800" : "text-ink-muted"
               }`}
               aria-pressed={mode === tab.id}
             >
@@ -135,7 +135,7 @@ export function TaxonomyDialog({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl border border-line px-4 py-2 text-xs text-ink-muted transition-colors hover:text-ink"
+            className="rounded-md border border-line px-4 py-2 text-xs text-ink-muted transition-colors hover:text-ink"
           >
             إغلاق
           </button>
@@ -143,7 +143,7 @@ export function TaxonomyDialog({
             type="button"
             onClick={() => void submit()}
             disabled={pending}
-            className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-md bg-brand-700 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {pending ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : null}
             إضافة

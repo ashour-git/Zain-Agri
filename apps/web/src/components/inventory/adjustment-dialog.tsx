@@ -265,7 +265,7 @@ export function AdjustmentDialog({
               value={unitCost}
               onChange={(event) => setUnitCost(event.target.value)}
               placeholder="18.00"
-              hint="تُسجَّل للاطلاع فقط؛ لا توجد طريقة تكلفة معتمدة بعد."
+              hint="اختيارية. تساعدك لاحقاً على معرفة تكلفة البضاعة."
             />
           ) : null}
         </div>
@@ -278,7 +278,7 @@ export function AdjustmentDialog({
           placeholder="جرد دوري، تالف، رصيد افتتاحي…"
         />
 
-        <div className="grid gap-3 rounded-xl border border-line bg-surface/50 p-4 sm:grid-cols-3">
+        <div className="grid gap-3 rounded-md border border-line bg-surface/50 p-4 sm:grid-cols-3">
           <div>
             <p className="text-xs text-ink-muted">الرصيد الحالي</p>
             <p className="mt-0.5 text-sm font-semibold text-ink">{formatQuantity(balance)}</p>
@@ -302,9 +302,9 @@ export function AdjustmentDialog({
         </div>
 
         {willGoNegative ? (
-          <p className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs leading-relaxed text-red-700">
+          <p className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs leading-relaxed text-red-700">
             <AlertTriangle className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-            الرصيد الناتج سالب. سيرفض الخادم هذه الحركة.
+            الرصيد الناتج سالب، ولن تُقبل هذه الحركة. قلّل الكمية.
           </p>
         ) : (
           <p className="text-xs leading-relaxed text-ink-muted">
@@ -316,7 +316,7 @@ export function AdjustmentDialog({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl border border-line px-4 py-2 text-xs text-ink-muted transition-colors hover:text-ink"
+            className="rounded-md border border-line px-4 py-2 text-xs text-ink-muted transition-colors hover:text-ink"
           >
             إلغاء
           </button>
@@ -324,7 +324,7 @@ export function AdjustmentDialog({
             type="button"
             onClick={() => void submit()}
             disabled={pending || loading || !detail}
-            className="inline-flex items-center gap-2 rounded-xl bg-brand-700 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-md bg-brand-700 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-800 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {pending ? <Loader2 className="size-3.5 animate-spin" aria-hidden="true" /> : null}
             تأكيد الحركة

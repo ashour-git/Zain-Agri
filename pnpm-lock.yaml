@@ -10,6 +10,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@fontsource-variable/readex-pro':
+        specifier: 5.3.0
+        version: 5.3.0
       '@hookform/resolvers':
         specifier: ^6.0.2
         version: 6.0.2(react-hook-form@7.91.0(@types/react@19.3.0)(react@19.3.1))(zod@4.6.7)
@@ -194,6 +197,9 @@ packages:
   '@eslint/plugin-kit@0.4.1':
     resolution: {integrity: sha512-43/qtrDUokr7LJqoF2c3+RInu/t4zfrpYdoSDfYyhg52rwLV6TnOvdG4fXm7IkSB3wErkcmJS9iEhjVtOSEjjA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
+
+  '@fontsource-variable/readex-pro@5.3.0':
+    resolution: {integrity: sha512-ebrEcz8sjzQk92x6K3WtYzOgEKTIDe5D+iPqef0YYvPdqCfxzVkRgpsog5POX4sWa7e4wccCQ1IhmMuRka2hZg==}
 
   '@hookform/resolvers@6.0.2':
     resolution: {integrity: sha512-e2dqUOlaGuirKVOd/iZWk/Yg5zeaGw7t0hSc3LzxL3o7eZGwZkTyEbBL8H52m0wRKEsNLWoMGOiXGHbPHTXlEQ==}
@@ -2309,6 +2315,8 @@ snapshots:
     dependencies:
       '@eslint/core': 0.17.0
       levn: 0.4.1
+
+  '@fontsource-variable/readex-pro@5.3.0': {}
 
   '@hookform/resolvers@6.0.2(react-hook-form@7.91.0(@types/react@19.3.0)(react@19.3.1))(zod@4.6.7)':
     dependencies:

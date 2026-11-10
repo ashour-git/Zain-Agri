@@ -261,3 +261,23 @@ export type InventoryDetail = {
   movements: Movement[];
 };
 
+
+export type AuditLog = {
+  id: string;
+  actor_id: string | null;
+  actor_name: string | null;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  before_state: Record<string, unknown> | null;
+  after_state: Record<string, unknown> | null;
+  meta: Record<string, unknown> | null;
+  created_at: string;
+};
+
+export type AuditList = {
+  items: AuditLog[];
+  total: number;
+  page: number;
+  page_size: number;
+};

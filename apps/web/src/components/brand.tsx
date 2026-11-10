@@ -1,32 +1,42 @@
 import { cn } from "@/lib/utils";
 
-export function BrandMark({ className }: { className?: string }) {
+/** One leaf with its vein, in the field green: the trade, legible at 32px. No gradient, no glow. */
+export function BrandMark({ className, inverted }: { className?: string; inverted?: boolean }) {
   return (
-    <div
+    <span
       className={cn(
-        "relative grid size-11 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-800 shadow-lg shadow-brand-950/30",
+        "grid size-10 shrink-0 place-items-center rounded-md",
+        inverted ? "bg-white text-brand-700" : "bg-brand-700 text-white",
         className,
       )}
+      aria-hidden="true"
     >
-      <svg viewBox="0 0 24 24" className="size-6" fill="none" aria-hidden="true">
+      <svg viewBox="0 0 24 24" className="size-[60%]" fill="none">
+        <path d="M5 19C5 10.5 10.5 5 19 5c0 8.5-5.5 14-14 14Z" fill="currentColor" />
         <path
-          d="M7 7.5h10L9 16.5h8"
-          stroke="white"
-          strokeWidth="2.2"
+          d="M5 19 13.5 10.5"
+          stroke={inverted ? "var(--color-panel)" : "var(--color-brand-700)"}
+          strokeWidth="1.8"
           strokeLinecap="round"
-          strokeLinejoin="round"
         />
       </svg>
-      <span className="absolute -bottom-1 -left-1 size-3 rounded-full bg-accent-400 ring-2 ring-brand-950" />
-    </div>
+    </span>
   );
 }
 
-export function BrandWordmark() {
+export function BrandWordmark({ tone = "dark" }: { tone?: "dark" | "light" }) {
   return (
-    <div className="flex flex-col leading-tight">
-      <span className="text-[15px] font-bold tracking-wide text-white">ZAIN AGRI</span>
-      <span className="text-xs font-medium text-brand-200">منصة إدارة الأعمال الزراعية</span>
-    </div>
+    <span className="flex flex-col leading-tight">
+      <span
+        className={cn("text-base font-semibold", tone === "dark" ? "text-ink" : "text-white")}
+        dir="ltr"
+        lang="en"
+      >
+        ZAIN AGRI
+      </span>
+      <span className={cn("text-xs", tone === "dark" ? "text-ink-muted" : "text-brand-100")}>
+        إدارة المتجر الزراعي
+      </span>
+    </span>
   );
 }

@@ -8,7 +8,7 @@ export default function NotFound() {
       <p className="text-sm text-ink-muted">الرابط الذي فتحته غير متاح أو تم نقله.</p>
       <Link
         href="/"
-        className="rounded-xl bg-brand-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-800"
+        className="rounded-md bg-brand-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-800"
       >
         العودة إلى لوحة التحكم
       </Link>

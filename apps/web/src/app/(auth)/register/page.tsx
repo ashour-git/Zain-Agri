@@ -62,15 +62,15 @@ export default function RegisterPage() {
   });
 
   return (
-    <Card className="border-white/10 bg-white/95 shadow-xl backdrop-blur">
-      <CardHeader className="space-y-1 p-6 pb-2">
-        <CardTitle className="text-lg">إنشاء حساب جديد</CardTitle>
+    <Card className="border-0 bg-transparent">
+      <CardHeader className="space-y-1.5 p-0 pb-7">
+        <CardTitle className="text-[26px] font-semibold leading-tight">إنشاء حساب جديد</CardTitle>
         <CardDescription>
           أنشئ حسابك أولاً، ثم أنشئ متجرك لتصبح مالكه. خطوتان فقط.
         </CardDescription>
       </CardHeader>
 
-      <CardContent className="p-6 pt-4">
+      <CardContent className="p-0">
         <form onSubmit={onSubmit} className="space-y-4" noValidate>
           <FormError>{formError}</FormError>
 
@@ -118,7 +118,7 @@ export default function RegisterPage() {
           </SubmitButton>
         </form>
 
-        <div className="mt-5 border-t border-line pt-4 text-xs text-ink-muted">
+        <div className="mt-6 border-t border-line pt-5 text-sm text-ink-muted">
           لديك حساب بالفعل؟{" "}
           <a href="/login" className="font-semibold text-brand-700 hover:underline">
             تسجيل الدخول
