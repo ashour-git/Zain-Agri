@@ -33,7 +33,7 @@ git push origin main
 
 ## 2. Database on Neon (15 min)
 
-1. Sign up at neon.com, **New project**: Postgres **17**, region **AWS Europe
+1. Sign up at neon.com, **New project**: Postgres **18** (the backup job uses pg_dump 18), region **AWS Europe
    (Frankfurt)** (closest to Egypt).
 2. Copy the **owner** connection string from *Connect* (role `neondb_owner`,
    **direct** connection, not the `-pooler` host). Keep it private.
