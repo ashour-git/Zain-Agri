@@ -10,7 +10,10 @@
  * callers) and replays the original request.
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+// Same-origin by default: /api/* is proxied to the API (next.config.ts), which
+// keeps the SameSite=Lax refresh cookie first-party. Set NEXT_PUBLIC_API_BASE_URL
+// only to call an API on the same site directly (e.g. api.example.com).
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL ?? "").replace(/\/+$/, "");
 
 let accessToken: string | null = null;
 let refreshInFlight: Promise<boolean> | null = null;

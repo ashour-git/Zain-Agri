@@ -1,0 +1,61 @@
+# Nightly encrypted database backup.
+#
+# Neon's free plan keeps only 6 hours of restore history, so this keeps a
+# daily copy for 30 days as a GitHub Actions artifact. The dump holds every
+# shop's data, so it is encrypted (AES-256, gpg) before upload: artifacts of a
+# public repository can be downloaded by any signed-in GitHub user.
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   BACKUP_DATABASE_URL  owner-role libpq URL, e.g.
+#                        postgresql://neondb_owner:PASS@ep-xxx.eu-central-1.aws.neon.tech/neondb?sslmode=require
+#                        (note: postgresql://, not postgresql+psycopg://)
+#   BACKUP_PASSPHRASE    long random passphrase; keep a copy outside GitHub,
+#                        without it the backups cannot be opened.
+#
+# Restore: see docs/deploy/DEPLOY.md, "Restore a backup".
+
+name: db-backup
+
+on:
+  schedule:
+    - cron: "0 1 * * *" # 01:00 UTC = 03:00 Cairo, after closing time
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    container: postgres:17 # pg_dump must match the server's major version
+    steps:
+      - name: Dump and encrypt
+        env:
+          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          set -eu
+          if [ -z "${DATABASE_URL}" ] || [ -z "${BACKUP_PASSPHRASE}" ]; then
+            echo "BACKUP_DATABASE_URL and BACKUP_PASSPHRASE secrets are required" >&2
+            exit 1
+          fi
+          apt-get update -qq && apt-get install -y -qq gnupg > /dev/null
+          file="zain-$(date -u +%Y-%m-%d).dump"
+          pg_dump --format=custom --no-owner --no-privileges --dbname="${DATABASE_URL}" --file="${file}"
+          gpg --batch --yes --pinentry-mode loopback --passphrase "${BACKUP_PASSPHRASE}" \
+              --symmetric --cipher-algo AES256 --output "${file}.gpg" "${file}"
+          rm -f "${file}"
+          ls -l "${file}.gpg"
+
+      - name: Upload encrypted backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ github.run_id }}
+          path: "*.dump.gpg"
+          retention-days: 30
+          if-no-files-found: error

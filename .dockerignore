@@ -1,0 +1,13 @@
+# Keep secrets, local state and the web app out of the API image build context.
+.env
+.env.*
+!.env.example
+.git
+**/__pycache__
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.venv
+**/node_modules
+apps/web
+docs
