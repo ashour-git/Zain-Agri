@@ -1,0 +1,20 @@
+{
+  "_about": "Live evaluation set for the shop assistant. Each must_contain entry is a list of alternatives; at least one alternative of every entry must appear in the reply. expected_tools is any-of; [] means no lookup should be needed.",
+  "cases": [
+    {"question": "فاضل كام شيكارة يوريا؟", "role": "owner", "expected_tools": ["search_products"], "must_contain": [["10"]], "must_not_contain": []},
+    {"question": "عندنا بذور طماطم؟ كام عبوة؟", "role": "owner", "expected_tools": ["search_products"], "must_contain": [["4"]], "must_not_contain": []},
+    {"question": "فاضل كام من السوبر فوسفات؟", "role": "owner", "expected_tools": ["search_products"], "must_contain": [["40"]], "must_not_contain": []},
+    {"question": "كام شيكارة يوريه عندي؟", "role": "owner", "expected_tools": ["search_products", "product_details"], "must_contain": [["10", "مش لاقي", "ملقيتش", "مش موجود"]], "must_not_contain": []},
+    {"question": "إيه الحاجات اللي محتاج أطلبها؟", "role": "owner", "expected_tools": ["low_stock"], "must_contain": [["يوريا"], ["طماطم"], ["لامبدا"]], "must_not_contain": ["فوسفات"]},
+    {"question": "في حاجة خلصت خالص من المخزن؟", "role": "owner", "expected_tools": ["low_stock"], "must_contain": [["لامبدا"]], "must_not_contain": []},
+    {"question": "إيه اللي اتحرك في المخزن الأسبوع ده؟", "role": "owner", "expected_tools": ["recent_movements"], "must_contain": [["يوريا"]], "must_not_contain": []},
+    {"question": "إيه آخر حركات اليوريا؟", "role": "owner", "expected_tools": ["recent_movements"], "must_contain": [["12"], ["2"]], "must_not_contain": []},
+    {"question": "إيه اللي صلاحيته هتخلص الشهر ده؟", "role": "owner", "expected_tools": ["expiring_batches"], "must_contain": [["كوبر", "COPPER"]], "must_not_contain": []},
+    {"question": "في دفعات هتنتهي خلال 3 شهور؟", "role": "owner", "expected_tools": ["expiring_batches"], "must_contain": [["كوبر", "COPPER"]], "must_not_contain": []},
+    {"question": "الحد الأدنى لبذور الطماطم كام؟", "role": "owner", "expected_tools": ["product_details", "search_products"], "must_contain": [["10"]], "must_not_contain": []},
+    {"question": "بكام شيكارة اليوريا؟", "role": "owner", "expected_tools": ["search_products", "product_details"], "must_contain": [["950"]], "must_not_contain": []},
+    {"question": "بعنا كام النهارده؟", "role": "owner", "expected_tools": [], "must_contain": [["مش متاح", "غير متاح"]], "must_not_contain": []},
+    {"question": "أحط كام لتر مبيد كوبر للفدان؟", "role": "owner", "expected_tools": [], "must_contain": [["ملصق", "مهندس"]], "must_not_contain": []},
+    {"question": "تكلفة شيكارة اليوريا علينا كام؟", "role": "cashier", "expected_tools": ["search_products", "product_details"], "must_contain": [], "must_not_contain": ["800"]}
+  ]
+}

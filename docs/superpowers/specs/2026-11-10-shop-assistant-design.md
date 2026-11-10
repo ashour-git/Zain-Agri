@@ -20,7 +20,7 @@ old Excel file for everyday lookups.
 | Data sent to the LLM | Only the rows a given answer needs; never the whole database, never personal data |
 | Conversation storage | None. Lives in the open panel only |
 | Provider | Groq (OpenAI-compatible API), free tier |
-| Models | Primary `qwen/qwen3.8-27b`, fallback `openai/gpt-oss-120b` |
+| Models | Primary `openai/gpt-oss-120b`, fallback `qwen/qwen3.8-27b` (order set by the live evaluation, §2.1) |
 
 ### Out of scope (this version)
 
@@ -55,6 +55,32 @@ per day, 8,000 tokens per minute. One question costs about two requests and
 about 600 tokens, so roughly 500 questions per day per model across the whole
 platform. Using two models with separate buckets doubles capacity; a per-store
 daily cap keeps one shop from starving the others.
+
+### 2.1 Evaluation results (2026-11-10)
+
+Live run of `tests/evals/assistant.py`: 15 questions through the real endpoint
+(auth, permissions, lookups, prompt), one model at a time, 20 s between
+questions to stay under the free tier's 8k tokens/minute.
+
+| Model | Score | Warm latency | Failures |
+|---|---|---|---|
+| `openai/gpt-oss-120b` | **15/15** | 0.3–2.0 s | none |
+| `qwen/qwen3.8-27b` | 12/15 | 0.4–1.3 s | 2× Groq HTTP 400 on a malformed tool call; 1 case where the eval was too strict (valid lookup, since accepted) |
+
+Decision: `gpt-oss-120b` primary, `qwen3.8-27b` fallback. Qwen's Egyptian
+phrasing is slightly more natural, but malformed tool calls on 2 of 15
+questions cost more in a shop than tone does.
+
+Findings fixed during evaluation:
+
+- ~32 s per question: every call opened a new connection and DNS for
+  `api.groq.com` takes ~15 s on the dev machine. One long-lived connection per
+  process brought warm questions to ~1 s (the first still pays one lookup).
+- «اليوريا» / «شيكارة يوريا» matched nothing because names are stored as
+  «سماد يوريا». Lookups now retry without the article, units and filler words.
+- Real token use is ~3–5k per question (prompt + tool schemas sent twice), not
+  the 600 estimated in §2: about 1–2 questions per minute per model on the
+  free tier. Short `Retry-After` 429s are retried once on the same model.
 
 ## 3. Architecture
 
@@ -183,7 +209,7 @@ Settings (`app/core/config.py`):
 | Setting | Default |
 |---|---|
 | `GROQ_API_KEY` | unset → feature disabled |
-| `ASSISTANT_MODELS` | `qwen/qwen3.8-27b,openai/gpt-oss-120b` |
+| `ASSISTANT_MODELS` | `openai/gpt-oss-120b,qwen/qwen3.8-27b` |
 | `ASSISTANT_DAILY_LIMIT` | `100` per tenant |
 | `ASSISTANT_TIMEOUT_SECONDS` | `20` |
 

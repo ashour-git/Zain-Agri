@@ -71,7 +71,8 @@ class Settings(BaseSettings):
 
     # Shop assistant (Groq). Without a key the feature is off and invisible.
     groq_api_key: SecretStr | None = None
-    assistant_models: str = "qwen/qwen3.8-27b,openai/gpt-oss-120b"
+    # Order from the live evaluation (spec §2): gpt-oss-120b 15/15, qwen 12/15.
+    assistant_models: str = "openai/gpt-oss-120b,qwen/qwen3.8-27b"
     assistant_daily_limit: int = 100
     assistant_timeout_seconds: float = 20
 

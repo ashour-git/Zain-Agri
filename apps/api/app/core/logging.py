@@ -16,6 +16,11 @@ _EXTRA_FIELDS = (
     "user_id",
     "event",
     "ip",
+    # Shop assistant diagnostics. Never message content.
+    "model",
+    "error_code",
+    "reason",
+    "tool",
 )
 
 
