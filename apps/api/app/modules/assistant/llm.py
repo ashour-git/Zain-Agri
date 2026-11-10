@@ -6,6 +6,7 @@ free-tier limit does not take the assistant down. Message content is never
 logged.
 """
 
+import asyncio
 import logging
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -19,6 +20,9 @@ TEMPERATURE = 0.2
 MAX_COMPLETION_TOKENS = 600
 # Idle connections are kept this long so the next question skips DNS and TLS.
 KEEPALIVE_SECONDS = 300.0
+# A 429 asking us to wait at most this long is retried once on the same model;
+# longer waits move straight to the next model.
+MAX_RETRY_WAIT_SECONDS = 8.0
 
 
 def _error_code(response: httpx.Response) -> str | None:
@@ -28,6 +32,13 @@ def _error_code(response: httpx.Response) -> str | None:
     except (ValueError, KeyError, TypeError):
         return None
     return code if isinstance(code, str) else None
+
+
+def _retry_after(response: httpx.Response) -> float | None:
+    try:
+        return max(0.0, float(response.headers["retry-after"]))
+    except (KeyError, ValueError):
+        return None
 
 
 class AssistantUnavailable(Exception):
@@ -77,6 +88,11 @@ class GroqClient:
             await self._client.aclose()
             self._client = None
 
+    async def _post(self, client: httpx.AsyncClient, body: dict[str, Any]) -> httpx.Response:
+        return await client.post(
+            GROQ_CHAT_URL, json=body, headers={"Authorization": f"Bearer {self._api_key}"}
+        )
+
     async def complete(
         self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
     ) -> Completion:
@@ -93,11 +109,15 @@ class GroqClient:
                 body["tool_choice"] = "auto"
 
             try:
-                response = await client.post(
-                    GROQ_CHAT_URL,
-                    json=body,
-                    headers={"Authorization": f"Bearer {self._api_key}"},
-                )
+                response = await self._post(client, body)
+                wait = _retry_after(response)
+                if (
+                    response.status_code == 429
+                    and wait is not None
+                    and wait <= MAX_RETRY_WAIT_SECONDS
+                ):
+                    await asyncio.sleep(wait)
+                    response = await self._post(client, body)
             except httpx.HTTPError as exc:
                 logger.warning(
                     "assistant_model_failed",

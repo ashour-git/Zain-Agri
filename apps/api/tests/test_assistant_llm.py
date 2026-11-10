@@ -141,3 +141,37 @@ async def test_malformed_success_body_falls_back() -> None:
     groq, _ = client_with(handler)
 
     assert (await groq.complete(MESSAGES, TOOLS)).model == "m2"
+
+
+async def test_short_retry_after_on_429_retries_same_model_once() -> None:
+    attempts: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        model = json.loads(request.content)["model"]
+        attempts.append(model)
+        if model == "m1" and attempts.count("m1") == 1:
+            return httpx.Response(429, headers={"retry-after": "0"}, json={})
+        return httpx.Response(200, json=OK_BODY)
+
+    groq, _ = client_with(handler)
+
+    completion = await groq.complete(MESSAGES, TOOLS)
+
+    assert completion.model == "m1"
+    assert attempts == ["m1", "m1"]
+
+
+async def test_long_retry_after_moves_to_next_model() -> None:
+    attempts: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        model = json.loads(request.content)["model"]
+        attempts.append(model)
+        if model == "m1":
+            return httpx.Response(429, headers={"retry-after": "60"}, json={})
+        return httpx.Response(200, json=OK_BODY)
+
+    groq, _ = client_with(handler)
+
+    assert (await groq.complete(MESSAGES, TOOLS)).model == "m2"
+    assert attempts == ["m1", "m2"]

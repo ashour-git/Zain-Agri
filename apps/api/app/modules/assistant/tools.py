@@ -94,6 +94,70 @@ class ExpiryArgs(_Args):
     days: int = Field(ge=1, le=365)
 
 
+# --- Arabic-tolerant search ------------------------------------------------------
+
+# Words people type around a product name that never appear in the name itself.
+_NOISE = {
+    # units
+    "شيكارة",
+    "شيكاره",
+    "شكارة",
+    "شكاره",
+    "عبوة",
+    "عبوه",
+    "زجاجة",
+    "زجاجه",
+    "كيس",
+    "لتر",
+    "كيلو",
+    "جرام",
+    "علبة",
+    "علبه",
+    "كرتونة",
+    "كرتونه",
+    "قطعة",
+    "قطعه",
+    # filler
+    "كام",
+    "فاضل",
+    "باقي",
+    "عندنا",
+    "عندي",
+    "في",
+    "من",
+    "بتاع",
+    "بتاعة",
+    "رصيد",
+}
+
+
+def _clean_word(word: str) -> str:
+    for prefix in ("لل", "ال"):
+        if word.startswith(prefix) and len(word) > len(prefix) + 2:
+            return word[len(prefix) :]
+    return word
+
+
+def query_variants(query: str) -> list[str]:
+    """The query as typed, then without the article/units/filler, then single words.
+
+    Single words go longest first; on ties the later word first, because the
+    category ("بذور", "سماد") usually comes before the specific name.
+    """
+    words = query.split()
+    cleaned = [_clean_word(word) for word in words if word not in _NOISE]
+    cleaned = [word for word in cleaned if len(word) >= 2]
+    variants = [query.strip(), " ".join(cleaned)]
+    if len(cleaned) > 1:
+        order = {word: index for index, word in enumerate(cleaned)}
+        variants += sorted(cleaned, key=lambda word: (len(word), order[word]), reverse=True)
+    unique: list[str] = []
+    for variant in variants:
+        if variant and variant not in unique:
+            unique.append(variant)
+    return unique
+
+
 # --- formatting --------------------------------------------------------------
 
 
@@ -116,9 +180,17 @@ def _today() -> Any:
 
 
 async def _search_products(ctx: ToolContext, args: QueryArgs) -> list[dict[str, Any]]:
-    stock = await inventory.list_inventory(
-        ctx.db, tenant_id=ctx.tenant_id, page=1, page_size=MAX_ROWS, q=args.query
-    )
+    stock = None
+    matched = args.query
+    for variant in query_variants(args.query):
+        stock = await inventory.list_inventory(
+            ctx.db, tenant_id=ctx.tenant_id, page=1, page_size=MAX_ROWS, q=variant
+        )
+        matched = variant
+        if stock.items:
+            break
+    if stock is None:
+        return []
     costs: dict[uuid.UUID, Decimal | None] = {}
     if ctx.view_cost and stock.items:
         products = await catalog.list_products(
@@ -126,7 +198,7 @@ async def _search_products(ctx: ToolContext, args: QueryArgs) -> list[dict[str, 
             tenant_id=ctx.tenant_id,
             page=1,
             page_size=MAX_ROWS,
-            q=args.query,
+            q=matched,
             view_cost=True,
         )
         costs = {product.id: product.cost_price for product in products.items}
@@ -177,10 +249,10 @@ async def _recent_movements(ctx: ToolContext, args: MovementArgs) -> list[dict[s
         page_size=SCAN_ROWS if args.query else MAX_ROWS,
         created_from=since,
     )
-    needle = (args.query or "").strip()
+    needles = query_variants(args.query) if args.query else []
     rows = []
     for movement in page.items:
-        if needle and needle not in movement.product_name_ar:
+        if needles and not any(needle in movement.product_name_ar for needle in needles):
             continue
         sign = "+" if movement.direction == "in" else "-"
         rows.append(
@@ -216,15 +288,19 @@ async def _expiring_batches(ctx: ToolContext, args: ExpiryArgs) -> list[dict[str
 
 
 async def _product_details(ctx: ToolContext, args: QueryArgs) -> list[dict[str, Any]]:
-    page = await catalog.list_products(
-        ctx.db,
-        tenant_id=ctx.tenant_id,
-        page=1,
-        page_size=1,
-        q=args.query,
-        view_cost=ctx.view_cost,
-    )
-    if not page.items:
+    page = None
+    for variant in query_variants(args.query):
+        page = await catalog.list_products(
+            ctx.db,
+            tenant_id=ctx.tenant_id,
+            page=1,
+            page_size=1,
+            q=variant,
+            view_cost=ctx.view_cost,
+        )
+        if page.items:
+            break
+    if page is None or not page.items:
         return []
     product = page.items[0]
     batches = await inventory.list_batches(
@@ -272,7 +348,14 @@ def _fn(
     }
 
 
-_QUERY = {"query": {"type": "string", "description": "Product name or part of it, in Arabic."}}
+_QUERY = {
+    "query": {
+        "type": "string",
+        "description": (
+            "Product name only, in Arabic (e.g. يوريا), without units or question words."
+        ),
+    }
+}
 
 TOOLS: dict[str, _Tool] = {
     "search_products": _Tool(

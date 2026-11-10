@@ -99,7 +99,9 @@ async def answer(llm: LLM, ctx: ToolContext, history: list[Turn]) -> AgentReply:
                 {
                     "role": "tool",
                     "tool_call_id": call["id"],
-                    "content": json.dumps(outcome.result, ensure_ascii=False),
+                    "content": json.dumps(
+                        outcome.result, ensure_ascii=False, separators=(",", ":")
+                    ),
                 }
             )
 

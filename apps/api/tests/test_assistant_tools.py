@@ -225,3 +225,48 @@ async def test_rows_are_capped_at_20(
     outcome = await run_tool("low_stock", "{}", await _ctx(db_session, tenant.id, OWNER))
 
     assert len(outcome.result["rows"]) == 20
+
+
+async def test_search_tolerates_article_unit_and_filler_words(
+    client: AsyncClient, owner_session: AsyncSession, db_session: AsyncSession
+) -> None:
+    tenant, headers = await _shop(client, owner_session)
+    await _product(client, headers, "سماد يوريا 46%", "12")
+    ctx = await _ctx(db_session, tenant.id, OWNER)
+
+    for query in ["اليوريا", "شيكارة اليوريا", "فاضل كام يوريا"]:
+        outcome = await run_tool("search_products", json.dumps({"query": query}), ctx)
+        assert [row["name"] for row in outcome.result["rows"]] == ["سماد يوريا 46%"], query
+
+    details = await run_tool("product_details", json.dumps({"query": "اليوريا"}), ctx)
+    assert details.result["rows"][0]["name"] == "سماد يوريا 46%"
+
+
+async def test_movements_filter_tolerates_article(
+    client: AsyncClient, owner_session: AsyncSession, db_session: AsyncSession
+) -> None:
+    tenant, headers = await _shop(client, owner_session)
+    await _product(client, headers, "سماد يوريا 46%", "12")
+    await _product(client, headers, "بذور طماطم هجين", "4")
+
+    outcome = await run_tool(
+        "recent_movements",
+        json.dumps({"days": 7, "query": "اليوريا"}),
+        await _ctx(db_session, tenant.id, OWNER),
+    )
+
+    assert [row["product"] for row in outcome.result["rows"]] == ["سماد يوريا 46%"]
+
+
+def test_query_variants() -> None:
+    from app.modules.assistant.tools import query_variants
+
+    assert query_variants("شيكارة اليوريا") == ["شيكارة اليوريا", "يوريا"]
+    assert query_variants("بذور الطماطم الهجين") == [
+        "بذور الطماطم الهجين",
+        "بذور طماطم هجين",
+        "طماطم",
+        "هجين",
+        "بذور",
+    ]
+    assert query_variants("يوريا") == ["يوريا"]
