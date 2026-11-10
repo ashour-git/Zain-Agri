@@ -2,14 +2,23 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
-MAX_MESSAGE_CHARS = 500
+# What a person may type. Earlier assistant replies (tables, lists) are sent
+# back as history and are allowed to be much longer.
+MAX_QUESTION_CHARS = 500
+MAX_REPLY_CHARS = 4000
 
 
 class TurnIn(BaseModel):
     role: Literal["user", "assistant"]
-    content: str = Field(min_length=1, max_length=MAX_MESSAGE_CHARS)
+    content: str = Field(min_length=1, max_length=MAX_REPLY_CHARS)
+
+    @model_validator(mode="after")
+    def _questions_are_short(self) -> "TurnIn":
+        if self.role == "user" and len(self.content) > MAX_QUESTION_CHARS:
+            raise ValueError(f"A question may be at most {MAX_QUESTION_CHARS} characters")
+        return self
 
 
 class ChatIn(BaseModel):

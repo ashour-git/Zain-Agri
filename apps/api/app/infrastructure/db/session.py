@@ -24,6 +24,9 @@ def get_engine() -> AsyncEngine:
     return create_async_engine(
         settings.database_url,
         echo=settings.db_echo,
+        # Error messages must not carry bound values: they can be a user's
+        # search words, names or prices, and tracebacks end up in logs.
+        hide_parameters=True,
         pool_size=settings.db_pool_size,
         max_overflow=settings.db_max_overflow,
         pool_pre_ping=True,

@@ -28,6 +28,52 @@ const STARTERS: { text: string; permission: string }[] = [
 
 const FALLBACK_ERROR = "المساعد مش متاح دلوقتي، جرّب كمان شوية.";
 
+type Chat = {
+  messages: Message[];
+  draft: string;
+  setDraft: (value: string) => void;
+  pending: boolean;
+  error: string | null;
+  ask: (text: string) => void;
+  retry: () => void;
+};
+
+/**
+ * The conversation lives above the panel so closing and reopening keeps it
+ * (and an answer that arrives after closing is not lost). Reset on reload.
+ */
+function useChat(onRemaining: (remaining: number) => void): Chat {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [draft, setDraft] = useState("");
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const send = async (history: Message[]) => {
+    setPending(true);
+    setError(null);
+    try {
+      const result = await askAssistant(history.map(({ role, content }) => ({ role, content })));
+      setMessages([...history, { role: "assistant", content: result.reply, sources: result.sources }]);
+      onRemaining(result.remaining_today);
+    } catch (caught) {
+      setError(caught instanceof ApiRequestError ? caught.message : FALLBACK_ERROR);
+    } finally {
+      setPending(false);
+    }
+  };
+
+  const ask = (text: string) => {
+    const question = text.trim().slice(0, MAX_QUESTION_CHARS);
+    if (!question || pending) return;
+    const history: Message[] = [...messages, { role: "user", content: question }];
+    setMessages(history);
+    setDraft("");
+    void send(history);
+  };
+
+  return { messages, draft, setDraft, pending, error, ask, retry: () => void send(messages) };
+}
+
 /** Header button; renders nothing unless the assistant is enabled for this shop. */
 export function AssistantButton() {
   const { session } = useAuth();
@@ -37,6 +83,9 @@ export function AssistantButton() {
   );
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const chat = useChat((remaining) =>
+    setStatus((current) => (current ? { ...current, remaining } : current)),
+  );
 
   useEffect(() => {
     if (!tenantId) return;
@@ -68,33 +117,25 @@ export function AssistantButton() {
         <span className="sr-only sm:hidden">اسأل المساعد</span>
       </button>
       {open ? (
-        <AssistantPanel
-          remaining={status.remaining}
-          onRemaining={(remaining) => setStatus((current) => (current ? { ...current, remaining } : current))}
-          onClose={() => setOpen(false)}
-        />
+        <AssistantPanel chat={chat} remaining={status.remaining} onClose={() => setOpen(false)} />
       ) : null}
     </>
   );
 }
 
 function AssistantPanel({
+  chat,
   remaining,
-  onRemaining,
   onClose,
 }: {
+  chat: Chat;
   remaining: number;
-  onRemaining: (remaining: number) => void;
   onClose: () => void;
 }) {
+  const { messages, draft, setDraft, pending, error, ask, retry } = chat;
   const { session } = useAuth();
   const permissions = session?.permissions ?? [];
   const starters = STARTERS.filter((starter) => permissions.includes(starter.permission));
-
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [draft, setDraft] = useState("");
-  const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const panelRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -106,29 +147,6 @@ function AssistantPanel({
     const list = listRef.current;
     if (list) list.scrollTop = list.scrollHeight;
   }, [messages.length, pending, error]);
-
-  const send = async (history: Message[]) => {
-    setPending(true);
-    setError(null);
-    try {
-      const result = await askAssistant(history.map(({ role, content }) => ({ role, content })));
-      setMessages([...history, { role: "assistant", content: result.reply, sources: result.sources }]);
-      onRemaining(result.remaining_today);
-    } catch (caught) {
-      setError(caught instanceof ApiRequestError ? caught.message : FALLBACK_ERROR);
-    } finally {
-      setPending(false);
-    }
-  };
-
-  const ask = (text: string) => {
-    const question = text.trim().slice(0, MAX_QUESTION_CHARS);
-    if (!question || pending) return;
-    const history: Message[] = [...messages, { role: "user", content: question }];
-    setMessages(history);
-    setDraft("");
-    void send(history);
-  };
 
   return createPortal(
     <div className="fixed inset-0 z-50 animate-fade-in bg-ink/30" onMouseDown={close}>
@@ -216,7 +234,7 @@ function AssistantPanel({
           {error ? (
             <div role="alert" className="space-y-2 rounded-md border border-red-200 bg-red-50 px-3.5 py-3">
               <p className="text-sm text-red-800">{error}</p>
-              <button type="button" onClick={() => void send(messages)} className={buttonClass("secondary", "sm")}>
+              <button type="button" onClick={retry} className={buttonClass("secondary", "sm")}>
                 <RotateCcw className="size-3.5" aria-hidden="true" />
                 إعادة المحاولة
               </button>

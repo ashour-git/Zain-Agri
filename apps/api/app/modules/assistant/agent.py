@@ -14,6 +14,10 @@ from app.modules.assistant.prompt import SYSTEM_PROMPT
 from app.modules.assistant.tools import ToolContext, run_tool, tool_schemas
 
 MAX_TOOL_ROUNDS = 4
+# A model may ask for several lookups at once; more than this per round is refused.
+MAX_CALLS_PER_ROUND = 5
+# Hard ceiling on database work for one question, across all rounds.
+MAX_LOOKUPS_PER_QUESTION = 12
 MAX_TURNS = 10
 # ≈ 4,000 tokens at ~3 characters per token for Arabic.
 MAX_HISTORY_CHARS = 12_000
@@ -49,23 +53,47 @@ def trim_history(history: list[Turn]) -> list[Turn]:
     return turns
 
 
-def _echo(message: dict[str, Any]) -> dict[str, Any]:
-    """The assistant turn sent back to the model: only the fields the API accepts."""
+def _valid_calls(raw: Any) -> list[dict[str, Any]]:
+    """Tool calls with the fields we rely on; anything malformed is dropped."""
+    calls = []
+    for call in raw if isinstance(raw, list) else []:
+        function = call.get("function") if isinstance(call, dict) else None
+        if (
+            isinstance(call.get("id") if isinstance(call, dict) else None, str)
+            and isinstance(function, dict)
+            and isinstance(function.get("name"), str)
+        ):
+            arguments = function.get("arguments")
+            calls.append(
+                {
+                    "id": call["id"],
+                    "type": "function",
+                    "function": {
+                        "name": function["name"],
+                        "arguments": arguments if isinstance(arguments, str) else "{}",
+                    },
+                }
+            )
+    return calls
+
+
+def _tool_message(call_id: str, result: dict[str, Any]) -> dict[str, Any]:
     return {
-        "role": "assistant",
-        "content": message.get("content") or "",
-        "tool_calls": [
-            {
-                "id": call["id"],
-                "type": "function",
-                "function": {
-                    "name": call["function"]["name"],
-                    "arguments": call["function"].get("arguments") or "{}",
-                },
-            }
-            for call in message["tool_calls"]
-        ],
+        "role": "tool",
+        "tool_call_id": call_id,
+        "content": json.dumps(result, ensure_ascii=False, separators=(",", ":")),
     }
+
+
+async def _release_connection(ctx: ToolContext) -> None:
+    """End the read transaction before a slow model call.
+
+    Waiting on the model while holding a pooled connection lets a slow
+    provider exhaust the pool for every other request. The tenant context is
+    re-applied automatically when the next transaction begins.
+    """
+    if ctx.db.in_transaction():
+        await ctx.db.commit()
 
 
 async def answer(llm: LLM, ctx: ToolContext, history: list[Turn]) -> AgentReply:
@@ -79,30 +107,36 @@ async def answer(llm: LLM, ctx: ToolContext, history: list[Turn]) -> AgentReply:
 
     for round_number in range(MAX_TOOL_ROUNDS + 1):
         offered = schemas if round_number < MAX_TOOL_ROUNDS else []
+        await _release_connection(ctx)
         completion = await llm.complete(messages, offered)
         model = completion.model
         message = completion.message
-        calls = message.get("tool_calls") or []
+        requested = message.get("tool_calls") or []
+        calls = _valid_calls(requested)
 
-        if not calls or not offered:
+        if not requested or not offered:
             text = (message.get("content") or "").strip()
             return AgentReply(text or FALLBACK_REPLY, sources, model, tools_used)
+        if not calls:
+            # Every call was malformed: ask again rather than crash.
+            continue
 
-        messages.append(_echo(message))
-        for call in calls:
+        messages.append(
+            {"role": "assistant", "content": message.get("content") or "", "tool_calls": calls}
+        )
+        for index, call in enumerate(calls):
+            if index >= MAX_CALLS_PER_ROUND:
+                messages.append(_tool_message(call["id"], {"error": "too_many_calls"}))
+                continue
+            if len(tools_used) >= MAX_LOOKUPS_PER_QUESTION:
+                messages.append(_tool_message(call["id"], {"error": "lookup_limit_reached"}))
+                continue
             name = call["function"]["name"]
-            outcome = await run_tool(name, call["function"].get("arguments") or "{}", ctx)
+            outcome = await run_tool(name, call["function"]["arguments"], ctx)
             tools_used.append(name)
             if outcome.label and Source(name, outcome.label) not in sources:
                 sources.append(Source(name, outcome.label))
-            messages.append(
-                {
-                    "role": "tool",
-                    "tool_call_id": call["id"],
-                    "content": json.dumps(
-                        outcome.result, ensure_ascii=False, separators=(",", ":")
-                    ),
-                }
-            )
+            messages.append(_tool_message(call["id"], outcome.result))
 
-    return AgentReply(FALLBACK_REPLY, sources, model, tools_used)  # pragma: no cover
+    await _release_connection(ctx)
+    return AgentReply(FALLBACK_REPLY, sources, model, tools_used)

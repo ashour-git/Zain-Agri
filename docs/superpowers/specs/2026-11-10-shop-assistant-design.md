@@ -249,6 +249,25 @@ sources line, quota message, unavailable message, keyboard and focus.
 2. Add the key locally; run the live evaluation; record the scores here.
 3. Enable for the Zain tenant.
 
+## 9a. Hardening after branch review (2026-11-10)
+
+An independent review of the branch led to these rules, now enforced in code
+and tests:
+
+| Rule | Value | Where |
+|---|---|---|
+| Question length | ≤ 500 chars for user turns; earlier assistant replies ≤ 4,000 | `schemas.py` |
+| DB connection during model calls | Released before every model call (read transaction committed) | `agent.py` |
+| Per-request deadline | 20 s per Groq request (whole request, not per phase) | `llm.py` |
+| Whole-question deadline | 45 s; on expiry → 503 and the question is refunded | `router.py` |
+| Lookups | ≤ 5 per round, ≤ 12 per question, ≤ 4 search variants each | `agent.py`, `tools.py` |
+| Partial lists | `total` + `truncated` sent to the model when more rows matched | `tools.py` |
+| Expiring batches | Filtered in SQL (expiry ≤ horizon, in stock) | `inventory.service.list_batches` |
+| Lookup failures | Run in a savepoint; logged by exception type only; engine `hide_parameters=True` | `tools.py`, `db/session.py` |
+| Quota | Refunded when the answer fails; `Retry-After` computed in UTC across DST | `router.py`, `quota.py` |
+| Conversation | Kept above the panel; survives close/reopen until page reload | `assistant-panel.tsx` |
+| Form dialogs | No click-outside dismissal (Escape and × only) | `modal.tsx` |
+
 ## 10. Open items
 
 - The key pasted in chat on 2026-11-10 must be rotated before use.

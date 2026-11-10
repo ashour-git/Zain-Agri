@@ -4,6 +4,7 @@ Nothing is stored except an audit row (tools used, model, latency); the
 question text is never logged.
 """
 
+import asyncio
 import time
 from typing import Annotated
 
@@ -15,7 +16,7 @@ from app.core.errors import (
     AssistantDisabledError,
     AssistantQuotaError,
     AssistantUnavailableError,
-    UnprocessableError,
+    RequestValidationFailed,
 )
 from app.infrastructure.db.session import get_session
 from app.modules.assistant.agent import Turn, answer
@@ -35,6 +36,9 @@ DISABLED_MESSAGE = "المساعد غير مفعّل لهذا المتجر."
 QUOTA_MESSAGE = "خلصت أسئلة النهارده، بتتجدد الساعة 12 بالليل."
 UNAVAILABLE_MESSAGE = "المساعد مش متاح دلوقتي، جرّب كمان شوية."
 LAST_TURN_MESSAGE = "آخر رسالة لازم تكون سؤال من المستخدم."
+
+# The whole question: every model call and lookup, fallbacks included.
+ANSWER_DEADLINE_SECONDS = 45.0
 
 
 # One client per process, so its open connection is reused between questions.
@@ -91,7 +95,7 @@ async def chat(
     if not settings.assistant_enabled or llm is None:
         raise AssistantDisabledError(DISABLED_MESSAGE)
     if payload.messages[-1].role != "user":
-        raise UnprocessableError(LAST_TURN_MESSAGE)
+        raise RequestValidationFailed(LAST_TURN_MESSAGE)
 
     try:
         remaining = assistant_quota.consume(context.tenant.id, settings.assistant_daily_limit)
@@ -102,8 +106,11 @@ async def chat(
     ctx = ToolContext(db=db, tenant_id=context.tenant.id, permissions=context.permissions)
     history = [Turn(role=turn.role, content=turn.content) for turn in payload.messages]
     try:
-        result = await answer(llm, ctx, history)
-    except AssistantUnavailable as exc:
+        async with asyncio.timeout(ANSWER_DEADLINE_SECONDS):
+            result = await answer(llm, ctx, history)
+    except (AssistantUnavailable, TimeoutError) as exc:
+        # Not the shop's fault: give the question back.
+        assistant_quota.refund(context.tenant.id)
         raise AssistantUnavailableError(UNAVAILABLE_MESSAGE) from exc
 
     await audit.record(

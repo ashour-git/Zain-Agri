@@ -1,5 +1,6 @@
 """Groq client: request shape and model fallback."""
 
+import asyncio
 import json
 import logging
 from collections.abc import Callable
@@ -175,3 +176,25 @@ async def test_long_retry_after_moves_to_next_model() -> None:
 
     assert (await groq.complete(MESSAGES, TOOLS)).model == "m2"
     assert attempts == ["m1", "m2"]
+
+
+async def test_whole_call_has_a_deadline_then_falls_back() -> None:
+    async def handler(request: httpx.Request) -> httpx.Response:
+        if json.loads(request.content)["model"] == "m1":
+            await asyncio.sleep(2)
+        return httpx.Response(200, json=OK_BODY)
+
+    seen: list[str] = []
+
+    async def record(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content)["model"])
+        return await handler(request)
+
+    groq = GroqClient(
+        api_key="k", models=["m1", "m2"], timeout=0.2, transport=httpx.MockTransport(record)
+    )
+
+    completion = await groq.complete(MESSAGES, TOOLS)
+
+    assert completion.model == "m2"
+    assert seen == ["m1", "m2"]

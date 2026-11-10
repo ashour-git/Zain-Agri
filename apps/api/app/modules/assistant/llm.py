@@ -89,9 +89,12 @@ class GroqClient:
             self._client = None
 
     async def _post(self, client: httpx.AsyncClient, body: dict[str, Any]) -> httpx.Response:
-        return await client.post(
-            GROQ_CHAT_URL, json=body, headers={"Authorization": f"Bearer {self._api_key}"}
-        )
+        # httpx's timeout applies per phase (connect, each read); this bounds
+        # the whole request, so a slow trickle of bytes cannot run on.
+        async with asyncio.timeout(self._timeout):
+            return await client.post(
+                GROQ_CHAT_URL, json=body, headers={"Authorization": f"Bearer {self._api_key}"}
+            )
 
     async def complete(
         self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
@@ -118,7 +121,7 @@ class GroqClient:
                 ):
                     await asyncio.sleep(wait)
                     response = await self._post(client, body)
-            except httpx.HTTPError as exc:
+            except (httpx.HTTPError, TimeoutError) as exc:
                 logger.warning(
                     "assistant_model_failed",
                     extra={"model": model, "reason": type(exc).__name__},

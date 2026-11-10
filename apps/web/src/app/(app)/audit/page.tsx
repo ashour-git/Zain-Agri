@@ -147,7 +147,7 @@ export default function AuditPage() {
         <Card>
           <EmptyState
             icon={ShieldOff}
-            title="هذه الصفحة لمالك المتجر والمدير"
+            title="هذه الصفحة لمالك المتجر"
             body="اطلب من مالك المتجر منحك صلاحية «عرض سجل التدقيق» إذا كنت تحتاجها."
           />
         </Card>

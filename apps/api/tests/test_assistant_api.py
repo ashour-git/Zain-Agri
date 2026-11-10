@@ -1,5 +1,6 @@
 """HTTP contract of the shop assistant endpoints."""
 
+import asyncio
 from collections.abc import Callable, Iterator
 from typing import Any
 
@@ -103,6 +104,7 @@ async def test_last_turn_must_be_user(
     response = await client.post(CHAT, json=body, headers=headers)
 
     assert response.status_code == 422
+    assert response.json()["error"]["code"] == "validation_error"
 
 
 @pytest.mark.usefixtures("enabled")
@@ -163,3 +165,82 @@ async def test_requires_authentication(client: AsyncClient) -> None:
     response = await client.post(CHAT, json=ask("سؤال"))
 
     assert response.status_code == 401
+
+
+@pytest.mark.usefixtures("enabled")
+async def test_follow_up_after_a_long_answer_is_accepted(
+    client: AsyncClient, owner_session: AsyncSession, use_llm: Installer
+) -> None:
+    _, headers, _, _ = await seeded_login(client, owner_session)
+    use_llm(ScriptedLLM(reply("تمام")))
+    long_answer = "صنف تحت الحد - " * 150  # ~2,000 characters, like a reorder table
+
+    ok = await client.post(
+        CHAT,
+        json={
+            "messages": [
+                {"role": "user", "content": "إيه اللي ناقص؟"},
+                {"role": "assistant", "content": long_answer},
+                {"role": "user", "content": "طب والبذور؟"},
+            ]
+        },
+        headers=headers,
+    )
+    too_long = await client.post(
+        CHAT,
+        json={
+            "messages": [
+                {"role": "assistant", "content": "ا" * 4001},
+                {"role": "user", "content": "سؤال"},
+            ]
+        },
+        headers=headers,
+    )
+
+    assert ok.status_code == 200, ok.text
+    assert too_long.status_code == 422
+
+
+@pytest.mark.usefixtures("enabled")
+async def test_failed_question_gives_its_quota_back(
+    client: AsyncClient,
+    owner_session: AsyncSession,
+    use_llm: Installer,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(get_settings(), "assistant_daily_limit", 1)
+    _, headers, _, _ = await seeded_login(client, owner_session)
+
+    use_llm(ScriptedLLM(AssistantUnavailable()))
+    down = await client.post(CHAT, json=ask("سؤال"), headers=headers)
+    use_llm(ScriptedLLM(reply("تمام")))
+    up = await client.post(CHAT, json=ask("سؤال تاني"), headers=headers)
+
+    assert down.status_code == 503
+    assert up.status_code == 200
+    assert up.json()["remaining_today"] == 0
+
+
+@pytest.mark.usefixtures("enabled")
+async def test_whole_question_has_a_deadline(
+    client: AsyncClient,
+    owner_session: AsyncSession,
+    use_llm: Installer,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.modules.assistant import router as assistant_router
+
+    monkeypatch.setattr(assistant_router, "ANSWER_DEADLINE_SECONDS", 0.2)
+    _, headers, _, _ = await seeded_login(client, owner_session)
+
+    class Slow(ScriptedLLM):
+        async def complete(self, messages, tools):  # type: ignore[no-untyped-def]
+            await asyncio.sleep(2)
+            return await super().complete(messages, tools)
+
+    use_llm(Slow(reply("متأخر")))
+
+    response = await client.post(CHAT, json=ask("سؤال"), headers=headers)
+
+    assert response.status_code == 503
+    assert response.json()["error"]["code"] == "assistant_unavailable"

@@ -28,15 +28,11 @@ export function Modal({
 
   if (!open) return null;
 
+  // No click-outside dismissal: these dialogs hold forms, and the backdrop is
+  // also the scroll container, so dragging its scrollbar (or a stray tap above
+  // the phone sheet) would discard unsaved edits. Escape and × still close it.
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-brand-950/40 p-0 animate-fade-in sm:items-start sm:p-8"
-      onMouseDown={(event) => {
-        // Close only when the press starts on the backdrop itself, so a text
-        // selection that ends outside the panel does not discard the form.
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
+    <div className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-brand-950/40 p-0 animate-fade-in sm:items-start sm:p-8">
       <div
         ref={panelRef}
         role="dialog"

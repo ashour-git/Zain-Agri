@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
 
 /*
- * The model answers in light Markdown: paragraphs, **bold**, "-" or "1." lists
- * and pipe tables. This renders exactly that as React elements and nothing
- * else: no HTML is ever injected, so a product name containing markup stays
- * plain text.
+ * The model answers in light Markdown: paragraphs, **bold**, "-" or "1." lists,
+ * pipe tables and "#" headings. This renders exactly that as React elements
+ * and nothing else: no HTML is ever injected, so a product name containing
+ * markup stays plain text.
  */
 
 function inline(text: string): ReactNode[] {
@@ -19,6 +19,7 @@ function inline(text: string): ReactNode[] {
   );
 }
 
+const HEADING = /^\s*#{1,6}\s+/;
 const LIST_ITEM = /^\s*(?:[-*•]|\d+[.)])\s+/;
 const TABLE_ROW = /^\s*\|.*\|\s*$/;
 const TABLE_RULE = /^\s*\|?[\s:|-]+\|?\s*$/;
@@ -79,6 +80,16 @@ export function RichText({ text }: { text: string }) {
       continue;
     }
 
+    if (HEADING.test(line)) {
+      blocks.push(
+        <p key={`h${index}`} className="pt-1 font-semibold text-ink">
+          {inline(line.replace(HEADING, ""))}
+        </p>,
+      );
+      index += 1;
+      continue;
+    }
+
     if (LIST_ITEM.test(line)) {
       const items: string[] = [];
       while (index < lines.length && LIST_ITEM.test(lines[index] ?? "")) {
@@ -100,7 +111,8 @@ export function RichText({ text }: { text: string }) {
       index < lines.length &&
       (lines[index] ?? "").trim() &&
       !TABLE_ROW.test(lines[index] ?? "") &&
-      !LIST_ITEM.test(lines[index] ?? "")
+      !LIST_ITEM.test(lines[index] ?? "") &&
+      !HEADING.test(lines[index] ?? "")
     ) {
       paragraph.push(lines[index] ?? "");
       index += 1;

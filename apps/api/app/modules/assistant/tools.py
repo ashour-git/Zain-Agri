@@ -31,8 +31,10 @@ from app.modules.inventory import service as inventory
 logger = logging.getLogger(__name__)
 
 MAX_ROWS = 20
-# Wider page when we filter in Python afterwards (movements by name, batches by date).
-SCAN_ROWS = 100
+# Search attempts per lookup (as typed, cleaned, then single words).
+MAX_VARIANTS = 4
+# Products a movement search may resolve to ("بذور" can match several).
+MAX_PRODUCTS = 5
 
 STOCK_LABELS = {"ok": "متوفر", "low": "تحت الحد", "out": "نفد"}
 
@@ -60,6 +62,14 @@ class ToolContext:
     @property
     def view_cost(self) -> bool:
         return Permission.INVENTORY_VIEW_COST in self.permissions
+
+
+@dataclass(frozen=True)
+class Found:
+    """Rows plus how many matched in total, so the model can say a list is partial."""
+
+    rows: list[dict[str, Any]]
+    total: int
 
 
 @dataclass(frozen=True)
@@ -155,7 +165,7 @@ def query_variants(query: str) -> list[str]:
     for variant in variants:
         if variant and variant not in unique:
             unique.append(variant)
-    return unique
+    return unique[:MAX_VARIANTS]
 
 
 # --- formatting --------------------------------------------------------------
@@ -221,8 +231,9 @@ async def _search_products(ctx: ToolContext, args: QueryArgs) -> list[dict[str, 
     return rows
 
 
-async def _low_stock(ctx: ToolContext, _: NoArgs) -> list[dict[str, Any]]:
+async def _low_stock(ctx: ToolContext, _: NoArgs) -> Found:
     rows: list[dict[str, Any]] = []
+    total = 0
     for level in ("out", "low"):
         page = await inventory.list_inventory(
             ctx.db, tenant_id=ctx.tenant_id, page=1, page_size=MAX_ROWS, stock=level
@@ -237,23 +248,44 @@ async def _low_stock(ctx: ToolContext, _: NoArgs) -> list[dict[str, Any]]:
             }
             for item in page.items
         )
-    return rows
+        total += page.total
+    return Found(rows, total)
 
 
 async def _recent_movements(ctx: ToolContext, args: MovementArgs) -> list[dict[str, Any]]:
     since = datetime.now(SHOP_TZ) - timedelta(days=args.days)
-    page = await inventory.list_movements(
-        ctx.db,
-        tenant_id=ctx.tenant_id,
-        page=1,
-        page_size=SCAN_ROWS if args.query else MAX_ROWS,
-        created_from=since,
-    )
-    needles = query_variants(args.query) if args.query else []
+    if args.query:
+        # Resolve the product first, then ask the database for its movements:
+        # filtering a page of recent movements in Python would miss older ones.
+        product_ids: list[uuid.UUID] = []
+        for variant in query_variants(args.query):
+            found = await inventory.list_inventory(
+                ctx.db, tenant_id=ctx.tenant_id, page=1, page_size=MAX_PRODUCTS, q=variant
+            )
+            product_ids = [item.product_id for item in found.items]
+            if product_ids:
+                break
+        movements = []
+        for product_id in product_ids:
+            page = await inventory.list_movements(
+                ctx.db,
+                tenant_id=ctx.tenant_id,
+                page=1,
+                page_size=MAX_ROWS,
+                product_id=product_id,
+                created_from=since,
+            )
+            movements.extend(page.items)
+        movements.sort(key=lambda movement: movement.created_at, reverse=True)
+    else:
+        movements = (
+            await inventory.list_movements(
+                ctx.db, tenant_id=ctx.tenant_id, page=1, page_size=MAX_ROWS, created_from=since
+            )
+        ).items
+
     rows = []
-    for movement in page.items:
-        if needles and not any(needle in movement.product_name_ar for needle in needles):
-            continue
+    for movement in movements:
         sign = "+" if movement.direction == "in" else "-"
         rows.append(
             {
@@ -270,21 +302,25 @@ async def _recent_movements(ctx: ToolContext, args: MovementArgs) -> list[dict[s
     return rows
 
 
-async def _expiring_batches(ctx: ToolContext, args: ExpiryArgs) -> list[dict[str, Any]]:
-    horizon = _today() + timedelta(days=args.days)
+async def _expiring_batches(ctx: ToolContext, args: ExpiryArgs) -> Found:
     page = await inventory.list_batches(
-        ctx.db, tenant_id=ctx.tenant_id, page=1, page_size=SCAN_ROWS
+        ctx.db,
+        tenant_id=ctx.tenant_id,
+        page=1,
+        page_size=MAX_ROWS,
+        expiring_by=_today() + timedelta(days=args.days),
+        in_stock_only=True,
     )
-    return [
+    rows = [
         {
             "product": batch.product_name_ar,
             "batch": batch.batch_number,
             "quantity": _num(batch.quantity),
-            "expiry": batch.expiry_date.isoformat(),
+            "expiry": batch.expiry_date.isoformat() if batch.expiry_date else None,
         }
         for batch in page.items
-        if batch.expiry_date is not None and batch.expiry_date <= horizon and batch.quantity > 0
     ]
+    return Found(rows, page.total)
 
 
 async def _product_details(ctx: ToolContext, args: QueryArgs) -> list[dict[str, Any]]:
@@ -330,7 +366,7 @@ async def _product_details(ctx: ToolContext, args: QueryArgs) -> list[dict[str, 
 class _Tool:
     permission: Permission
     args: type[_Args]
-    run: Callable[[ToolContext, Any], Awaitable[list[dict[str, Any]]]]
+    run: Callable[[ToolContext, Any], Awaitable[list[dict[str, Any]] | Found]]
     label: Callable[[Any], str]
     schema: dict[str, Any]
 
@@ -442,9 +478,22 @@ async def run_tool(name: str, raw_arguments: str, ctx: ToolContext) -> ToolOutco
         return ToolOutcome(name, "", {"error": "bad_arguments"})
 
     try:
-        rows = await tool.run(ctx, args)
-    except Exception:
-        logger.exception("assistant_tool_failed", extra={"tool": name})
+        # A savepoint: a failed query must not leave the request's transaction
+        # aborted for the next lookup, the audit write or the commit.
+        async with ctx.db.begin_nested():
+            found = await tool.run(ctx, args)
+    except Exception as exc:
+        # Name only: database errors and tracebacks can carry the user's words.
+        logger.warning("assistant_tool_failed", extra={"tool": name, "reason": type(exc).__name__})
         return ToolOutcome(name, tool.label(args), {"error": "lookup_failed"})
 
-    return ToolOutcome(name, tool.label(args), {"rows": rows[:MAX_ROWS]})
+    if isinstance(found, Found):
+        rows, total = found.rows, max(found.total, len(found.rows))
+    else:
+        rows, total = found, len(found)
+    result: dict[str, Any] = {"rows": rows[:MAX_ROWS]}
+    if total > len(result["rows"]):
+        # Tell the model the list is partial so it does not present it as complete.
+        result["total"] = total
+        result["truncated"] = True
+    return ToolOutcome(name, tool.label(args), result)

@@ -51,3 +51,28 @@ def test_lowering_the_limit_applies_immediately() -> None:
     assert quota.remaining(tenant, 1) == 0
     with pytest.raises(QuotaExceeded):
         quota.consume(tenant, 1)
+
+
+def test_retry_after_is_right_on_the_night_clocks_go_back() -> None:
+    # 2026-10-29 20:30 UTC is 23:30 Cairo summer time; clocks fall back at
+    # midnight, so local midnight is 90 real minutes away, not 30.
+    quota = DailyQuota(clock=lambda: datetime(2026, 10, 29, 20, 30, tzinfo=UTC))
+    tenant = uuid.uuid4()
+    quota.consume(tenant, 1)
+
+    with pytest.raises(QuotaExceeded) as exc:
+        quota.consume(tenant, 1)
+
+    assert exc.value.retry_after == 90 * 60
+
+
+def test_refund_gives_one_question_back() -> None:
+    quota = DailyQuota()
+    tenant = uuid.uuid4()
+    quota.consume(tenant, 1)
+
+    quota.refund(tenant)
+
+    assert quota.remaining(tenant, 1) == 1
+    quota.refund(tenant)  # never goes below zero used
+    assert quota.remaining(tenant, 1) == 1

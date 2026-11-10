@@ -60,6 +60,13 @@ class UnprocessableError(AppError):
     code = "unprocessable"
 
 
+class RequestValidationFailed(AppError):
+    """A request that parses but breaks a rule; same code as schema validation."""
+
+    status_code = 422
+    code = "validation_error"
+
+
 class AssistantDisabledError(AppError):
     status_code = status.HTTP_404_NOT_FOUND
     code = "assistant_disabled"

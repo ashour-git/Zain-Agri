@@ -14,7 +14,7 @@ has no movements at all. Anything else is a compensating adjustment.
 """
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -567,8 +567,13 @@ async def list_batches(
     page_size: int,
     product_id: uuid.UUID | None = None,
     q: str | None = None,
+    expiring_by: date | None = None,
+    in_stock_only: bool = False,
 ) -> BatchListOut:
     filters: list[Any] = [ProductBatch.tenant_id == tenant_id]
+    if expiring_by is not None:
+        filters.append(ProductBatch.expiry_date.is_not(None))
+        filters.append(ProductBatch.expiry_date <= expiring_by)
     if product_id is not None:
         filters.append(ProductBatch.product_id == product_id)
     if q:
@@ -584,6 +589,8 @@ async def list_batches(
         .correlate(ProductBatch)
         .scalar_subquery()
     )
+    if in_stock_only:
+        filters.append(quantity > 0)
 
     total = (await db.execute(select(func.count(ProductBatch.id)).where(*filters))).scalar_one()
     rows = (

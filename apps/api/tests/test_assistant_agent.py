@@ -3,10 +3,13 @@
 import json
 
 from httpx import AsyncClient
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.assistant.agent import (
     FALLBACK_REPLY,
+    MAX_CALLS_PER_ROUND,
+    MAX_LOOKUPS_PER_QUESTION,
     MAX_TOOL_ROUNDS,
     Source,
     Turn,
@@ -166,3 +169,85 @@ def test_trim_history_keeps_last_ten_and_char_budget() -> None:
     assert trimmed[-1] == long[-1]
     assert sum(len(turn.content) for turn in trimmed) <= 12_000
     assert len(trimmed) == 2
+
+
+async def test_database_connection_is_released_while_waiting_for_the_model(
+    client: AsyncClient, owner_session: AsyncSession, db_session: AsyncSession
+) -> None:
+    ctx, _ = await _ctx(client, owner_session, db_session)
+    held: list[bool] = []
+
+    class Watching(ScriptedLLM):
+        async def complete(self, messages, tools):  # type: ignore[no-untyped-def]
+            held.append(db_session.in_transaction())
+            return await super().complete(messages, tools)
+
+    await db_session.execute(text("SELECT 1"))  # as the request would, before answering
+    llm = Watching(tool_call("low_stock", {}), reply("تمام"))
+
+    await answer(llm, ctx, QUESTION)
+
+    assert held == [False, False]
+
+
+async def test_tool_calls_per_round_are_capped(
+    client: AsyncClient, owner_session: AsyncSession, db_session: AsyncSession
+) -> None:
+    ctx, _ = await _ctx(client, owner_session, db_session)
+    many = {
+        "role": "assistant",
+        "content": None,
+        "tool_calls": [
+            {
+                "id": f"c{i}",
+                "type": "function",
+                "function": {"name": "low_stock", "arguments": "{}"},
+            }
+            for i in range(MAX_CALLS_PER_ROUND + 3)
+        ],
+    }
+    llm = ScriptedLLM(many, reply("تمام"))
+
+    result = await answer(llm, ctx, QUESTION)
+
+    tool_messages = [m for m in llm.calls[1]["messages"] if m["role"] == "tool"]
+    assert len(tool_messages) == MAX_CALLS_PER_ROUND + 3  # every call gets an answer...
+    refused = [m for m in tool_messages if json.loads(m["content"]) == {"error": "too_many_calls"}]
+    assert len(refused) == 3  # ...but only the first ones run
+    assert len(result.tools_used) == MAX_CALLS_PER_ROUND
+
+
+async def test_total_lookups_per_question_are_capped(
+    client: AsyncClient, owner_session: AsyncSession, db_session: AsyncSession
+) -> None:
+    ctx, _ = await _ctx(client, owner_session, db_session)
+    burst = {
+        "role": "assistant",
+        "content": None,
+        "tool_calls": [
+            {
+                "id": f"c{i}",
+                "type": "function",
+                "function": {"name": "low_stock", "arguments": "{}"},
+            }
+            for i in range(MAX_CALLS_PER_ROUND)
+        ],
+    }
+    llm = ScriptedLLM(burst, burst, burst, burst, reply("تمام"))
+
+    result = await answer(llm, ctx, QUESTION)
+
+    assert len(result.tools_used) == MAX_LOOKUPS_PER_QUESTION
+
+
+async def test_malformed_tool_call_structure_does_not_crash(
+    client: AsyncClient, owner_session: AsyncSession, db_session: AsyncSession
+) -> None:
+    ctx, _ = await _ctx(client, owner_session, db_session)
+    broken = {"role": "assistant", "content": None, "tool_calls": [{"id": "c1"}, "garbage"]}
+    llm = ScriptedLLM(broken, reply("تمام"))
+
+    result = await answer(llm, ctx, QUESTION)
+
+    assert result.reply == "تمام"
+    assert result.tools_used == []

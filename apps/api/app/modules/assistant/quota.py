@@ -52,9 +52,19 @@ class DailyQuota:
             used = self._used.get((tenant_id, today), 0)
             if used >= limit:
                 midnight = datetime.combine(today + timedelta(days=1), time.min, SHOP_TZ)
-                raise QuotaExceeded(max(1, int((midnight - local).total_seconds())))
+                # Subtract in UTC: same-tzinfo subtraction ignores a DST change in between.
+                wait = midnight.astimezone(UTC) - local.astimezone(UTC)
+                raise QuotaExceeded(max(1, int(wait.total_seconds())))
             self._used[(tenant_id, today)] = used + 1
             return limit - used - 1
+
+    def refund(self, tenant_id: uuid.UUID) -> None:
+        """Give back one question (the answer failed through no fault of the shop)."""
+        today, _ = self._today()
+        with self._lock:
+            used = self._used.get((tenant_id, today), 0)
+            if used > 0:
+                self._used[(tenant_id, today)] = used - 1
 
     def reset(self) -> None:
         with self._lock:
