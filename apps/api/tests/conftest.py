@@ -96,12 +96,15 @@ async def db_session() -> AsyncIterator[AsyncSession]:
 
 @pytest.fixture(autouse=True)
 def reset_rate_limiter() -> Iterator[None]:
-    """The limiter is a process-wide singleton shared by every test."""
+    """The limiters are process-wide singletons shared by every test."""
     from app.core.ratelimit import auth_limiter
+    from app.modules.assistant.quota import assistant_quota
 
     auth_limiter.reset()
+    assistant_quota.reset()
     yield
     auth_limiter.reset()
+    assistant_quota.reset()
 
 
 @pytest_asyncio.fixture

@@ -168,8 +168,18 @@ caller. Token hashes and family ids are not part of the contract.
 ## 5. Rate limiting
 
 `app/core/ratelimit.py` implements a process-local sliding window keyed by
-`(scope, client ip, email)`. Defaults: 10 attempts per 300 seconds for login,
-register and refresh. Exceeding it returns `429` with `Retry-After`.
+`(scope, client ip, email)`. Exceeding it returns `429` with `Retry-After`.
+
+| Scope | Default | Setting |
+|---|---|---|
+| Login, register | 10 per 300 s | `AUTH_RATE_LIMIT_ATTEMPTS` |
+| Refresh | 120 per 300 s | `REFRESH_RATE_LIMIT_ATTEMPTS` |
+
+Refresh has its own ceiling because the web client refreshes on every page
+load, and a shop's tills and phones share one public IP. At 10 per window,
+ordinary use logged staff out. Refresh is not a guessing target: the token is
+48 random bytes (384 bits), and reuse detection (§2) revokes the whole family if a
+rotated token is replayed.
 
 **Limitation:** the counter is per worker. With N uvicorn workers the effective
 limit is N × configured value, and a restart clears it. A shared store (Redis)
@@ -253,7 +263,9 @@ refresh cookie is not `Secure`, or when `CORS_ORIGINS` is empty.
    makes revocation immediate — but it means the JWT saves no database work.
    If the lookup ever becomes a bottleneck, a short-lived in-process cache with
    a hard TTL can be added without weakening the model.
-2. **Rate limiting is per process** (§5).
+2. **Rate limiting is per process** (§5). The shop assistant's daily question
+   quota (`app/modules/assistant/quota.py`) has the same limitation: per worker,
+   cleared on restart.
 3. **No email delivery**, so verification is modelled but not enforced (§7).
 4. **No password reset flow.** It needs mail transport and a single-use token
    table; it is not part of Sprint 02.

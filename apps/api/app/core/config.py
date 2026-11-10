@@ -65,6 +65,15 @@ class Settings(BaseSettings):
     # Simple in-process throttling. Per worker, not shared. See AUTHENTICATION.md.
     auth_rate_limit_attempts: int = 10
     auth_rate_limit_window_seconds: int = 300
+    # Session refresh happens on every page load, from every till and phone
+    # behind the shop's single IP. Same window, far higher ceiling.
+    refresh_rate_limit_attempts: int = 120
+
+    # Shop assistant (Groq). Without a key the feature is off and invisible.
+    groq_api_key: SecretStr | None = None
+    assistant_models: str = "qwen/qwen3.8-27b,openai/gpt-oss-120b"
+    assistant_daily_limit: int = 100
+    assistant_timeout_seconds: float = 20
 
     # Argon2id parameters. Memory cost is in KiB.
     argon2_time_cost: int = 3
@@ -74,6 +83,14 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.environment == "production"
+
+    @property
+    def assistant_model_list(self) -> list[str]:
+        return [model.strip() for model in self.assistant_models.split(",") if model.strip()]
+
+    @property
+    def assistant_enabled(self) -> bool:
+        return self.groq_api_key is not None and bool(self.groq_api_key.get_secret_value().strip())
 
     @property
     def cors_origin_list(self) -> list[str]:
