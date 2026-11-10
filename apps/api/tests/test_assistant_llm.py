@@ -1,6 +1,7 @@
 """Groq client: request shape and model fallback."""
 
 import json
+import logging
 from collections.abc import Callable
 
 import httpx
@@ -79,6 +80,56 @@ async def test_tools_omitted_when_empty() -> None:
 
     assert "tools" not in seen[0]["body"]
     assert "tool_choice" not in seen[0]["body"]
+
+
+async def test_connection_is_reused_across_questions() -> None:
+    """A new connection costs a DNS lookup (15 s on some networks); reuse one."""
+    groq, _ = client_with(lambda _: httpx.Response(200, json=OK_BODY))
+
+    await groq.complete(MESSAGES, TOOLS)
+    first = groq._client
+    await groq.complete(MESSAGES, TOOLS)
+
+    assert first is not None
+    assert groq._client is first
+    await groq.aclose()
+    assert groq._client is None
+
+
+def test_get_llm_returns_one_shared_client(monkeypatch: pytest.MonkeyPatch) -> None:
+    from pydantic import SecretStr
+
+    from app.core.config import get_settings
+    from app.modules.assistant.router import get_llm
+
+    monkeypatch.setattr(get_settings(), "groq_api_key", SecretStr("k"))
+
+    assert get_llm() is get_llm()
+
+
+async def test_groq_error_code_is_logged_without_content(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Alembic's fileConfig (run once by the migration fixture) disables loggers
+    # that already exist; this module's logger is one of them under pytest.
+    monkeypatch.setattr(logging.getLogger("app.modules.assistant.llm"), "disabled", False)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if json.loads(request.content)["model"] == "m1":
+            return httpx.Response(
+                400,
+                json={"error": {"code": "tool_use_failed", "failed_generation": "سري جداً"}},
+            )
+        return httpx.Response(200, json=OK_BODY)
+
+    groq, _ = client_with(handler)
+
+    with caplog.at_level("WARNING"):
+        await groq.complete(MESSAGES, TOOLS)
+
+    failure = next(r for r in caplog.records if r.getMessage() == "assistant_model_failed")
+    assert failure.__dict__["error_code"] == "tool_use_failed"
+    assert "سري" not in caplog.text
 
 
 async def test_malformed_success_body_falls_back() -> None:

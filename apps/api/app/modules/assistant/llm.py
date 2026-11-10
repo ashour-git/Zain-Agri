@@ -17,6 +17,17 @@ logger = logging.getLogger(__name__)
 GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
 TEMPERATURE = 0.2
 MAX_COMPLETION_TOKENS = 600
+# Idle connections are kept this long so the next question skips DNS and TLS.
+KEEPALIVE_SECONDS = 300.0
+
+
+def _error_code(response: httpx.Response) -> str | None:
+    """Groq's short error code (e.g. tool_use_failed). Never the message: it can echo user data."""
+    try:
+        code = response.json()["error"]["code"]
+    except (ValueError, KeyError, TypeError):
+        return None
+    return code if isinstance(code, str) else None
 
 
 class AssistantUnavailable(Exception):
@@ -48,50 +59,71 @@ class GroqClient:
         self._models = models
         self._timeout = timeout
         self._transport = transport
+        self._client: httpx.AsyncClient | None = None
+
+    def _http(self) -> httpx.AsyncClient:
+        # One long-lived connection: opening a new one costs a DNS lookup and a
+        # TLS handshake every question (measured at ~15 s on a slow resolver).
+        if self._client is None:
+            self._client = httpx.AsyncClient(
+                timeout=self._timeout,
+                transport=self._transport,
+                limits=httpx.Limits(keepalive_expiry=KEEPALIVE_SECONDS),
+            )
+        return self._client
+
+    async def aclose(self) -> None:
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None
 
     async def complete(
         self, messages: list[dict[str, Any]], tools: list[dict[str, Any]]
     ) -> Completion:
-        async with httpx.AsyncClient(timeout=self._timeout, transport=self._transport) as client:
-            for model in self._models:
-                body: dict[str, Any] = {
-                    "model": model,
-                    "messages": messages,
-                    "temperature": TEMPERATURE,
-                    "max_completion_tokens": MAX_COMPLETION_TOKENS,
-                }
-                if tools:
-                    body["tools"] = tools
-                    body["tool_choice"] = "auto"
+        client = self._http()
+        for model in self._models:
+            body: dict[str, Any] = {
+                "model": model,
+                "messages": messages,
+                "temperature": TEMPERATURE,
+                "max_completion_tokens": MAX_COMPLETION_TOKENS,
+            }
+            if tools:
+                body["tools"] = tools
+                body["tool_choice"] = "auto"
 
-                try:
-                    response = await client.post(
-                        GROQ_CHAT_URL,
-                        json=body,
-                        headers={"Authorization": f"Bearer {self._api_key}"},
-                    )
-                except httpx.HTTPError as exc:
-                    logger.warning(
-                        "assistant_model_failed",
-                        extra={"model": model, "reason": type(exc).__name__},
-                    )
-                    continue
+            try:
+                response = await client.post(
+                    GROQ_CHAT_URL,
+                    json=body,
+                    headers={"Authorization": f"Bearer {self._api_key}"},
+                )
+            except httpx.HTTPError as exc:
+                logger.warning(
+                    "assistant_model_failed",
+                    extra={"model": model, "reason": type(exc).__name__},
+                )
+                continue
 
-                if not response.is_success:
-                    logger.warning(
-                        "assistant_model_failed",
-                        extra={"model": model, "status_code": response.status_code},
-                    )
-                    continue
+            if not response.is_success:
+                logger.warning(
+                    "assistant_model_failed",
+                    extra={
+                        "model": model,
+                        "status_code": response.status_code,
+                        "error_code": _error_code(response),
+                    },
+                )
+                continue
 
-                try:
-                    message = response.json()["choices"][0]["message"]
-                except (ValueError, KeyError, IndexError, TypeError):
-                    logger.warning(
-                        "assistant_model_failed", extra={"model": model, "reason": "bad_body"}
-                    )
-                    continue
+            try:
+                message = response.json()["choices"][0]["message"]
+            except (ValueError, KeyError, IndexError, TypeError):
+                logger.warning(
+                    "assistant_model_failed", extra={"model": model, "reason": "bad_body"}
+                )
+                continue
 
-                return Completion(message=message, model=model)
+            return Completion(message=message, model=model)
 
         raise AssistantUnavailable

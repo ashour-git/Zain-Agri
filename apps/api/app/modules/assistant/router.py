@@ -37,15 +37,31 @@ UNAVAILABLE_MESSAGE = "المساعد مش متاح دلوقتي، جرّب كم
 LAST_TURN_MESSAGE = "آخر رسالة لازم تكون سؤال من المستخدم."
 
 
+# One client per process, so its open connection is reused between questions.
+_shared: tuple[tuple[str, tuple[str, ...], float], GroqClient] | None = None
+
+
 def get_llm() -> LLM | None:
+    global _shared
     settings = get_settings()
     if not settings.assistant_enabled or settings.groq_api_key is None:
         return None
-    return GroqClient(
-        api_key=settings.groq_api_key.get_secret_value(),
-        models=settings.assistant_model_list,
-        timeout=settings.assistant_timeout_seconds,
+    key = (
+        settings.groq_api_key.get_secret_value(),
+        tuple(settings.assistant_model_list),
+        settings.assistant_timeout_seconds,
     )
+    if _shared is None or _shared[0] != key:
+        _shared = (key, GroqClient(api_key=key[0], models=list(key[1]), timeout=key[2]))
+    return _shared[1]
+
+
+async def close_llm() -> None:
+    """Called on shutdown to close the shared connection."""
+    global _shared
+    if _shared is not None:
+        await _shared[1].aclose()
+        _shared = None
 
 
 LLMDep = Annotated[LLM | None, Depends(get_llm)]

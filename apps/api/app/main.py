@@ -13,6 +13,7 @@ from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging
 from app.core.middleware import RequestContextMiddleware
 from app.infrastructure.db.session import dispose_engine
+from app.modules.assistant.router import close_llm
 from app.modules.assistant.router import router as assistant_router
 from app.modules.audit.router import router as audit_router
 from app.modules.auth.router import router as auth_router
@@ -32,6 +33,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         logger.info("startup", extra={"environment": settings.environment})
         yield
+        await close_llm()
         await dispose_engine()
         logger.info("shutdown")
 
