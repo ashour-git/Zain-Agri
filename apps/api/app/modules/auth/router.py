@@ -42,11 +42,18 @@ def _client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
-def _throttle(request: Request, settings: Settings, *, scope: str, subject: str = "") -> None:
+def _throttle(
+    request: Request,
+    settings: Settings,
+    *,
+    scope: str,
+    subject: str = "",
+    limit: int | None = None,
+) -> None:
     key = f"{scope}:{_client_ip(request)}:{subject.strip().lower()}"
     if not auth_limiter.allow(
         key,
-        limit=settings.auth_rate_limit_attempts,
+        limit=limit if limit is not None else settings.auth_rate_limit_attempts,
         window_seconds=settings.auth_rate_limit_window_seconds,
     ):
         logger.warning(
@@ -184,7 +191,10 @@ async def refresh(
     if not raw_token:
         raise UnauthorizedError("Invalid or expired session")
 
-    _throttle(request, settings, scope="refresh")
+    # Refresh runs on every page load and a shop's staff share one public IP,
+    # so it gets its own, higher ceiling. Guessing is not the threat here:
+    # rotation with reuse detection already revokes a stolen token's family.
+    _throttle(request, settings, scope="refresh", limit=settings.refresh_rate_limit_attempts)
     (
         user,
         new_refresh,

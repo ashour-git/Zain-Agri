@@ -368,6 +368,27 @@ async def test_refresh_rotates_the_token(client: AsyncClient, owner_session: Asy
     assert response.json()["access_token"] != body["access_token"]
 
 
+async def test_refresh_has_its_own_higher_ceiling(
+    client: AsyncClient, owner_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every page load refreshes, so normal use must not hit the login-sized limit."""
+    settings = get_settings()
+    ceiling = settings.auth_rate_limit_attempts + 2
+    monkeypatch.setattr(settings, "refresh_rate_limit_attempts", ceiling)
+
+    user, _, _ = await seed_member(owner_session)
+    await login(client, user.email)
+
+    statuses = [
+        (await client.post("/api/v1/auth/refresh", json={})).status_code for _ in range(ceiling + 1)
+    ]
+
+    # More refreshes than the login limit all succeed (12 page loads in a row)...
+    assert statuses[:ceiling] == [200] * ceiling
+    # ...and the refresh ceiling still stops a runaway client.
+    assert statuses[ceiling] == 429
+
+
 async def test_replayed_refresh_token_revokes_the_whole_family(
     client: AsyncClient, owner_session: AsyncSession
 ) -> None:
