@@ -49,8 +49,8 @@ export default function LoginPage() {
   return (
     <Card className="border-0 bg-transparent">
       <CardHeader className="space-y-1.5 p-0 pb-7">
-        <CardTitle className="text-[26px] font-semibold leading-tight">تسجيل الدخول</CardTitle>
-        <CardDescription>أدخل بريدك وكلمة المرور للدخول إلى متجرك.</CardDescription>
+        <CardTitle className="text-[26px] font-semibold leading-tight">الدخول إلى متجرك</CardTitle>
+        <CardDescription>استخدم البريد الإلكتروني وكلمة المرور الخاصة بحسابك.</CardDescription>
       </CardHeader>
 
       <CardContent className="p-0">
@@ -78,19 +78,19 @@ export default function LoginPage() {
           />
 
           <SubmitButton type="submit" pending={isSubmitting}>
-            {isSubmitting ? "جارٍ التحقق…" : "دخول"}
+            {isSubmitting ? "جارٍ الدخول…" : "تسجيل الدخول"}
           </SubmitButton>
         </form>
 
         <div className="mt-6 space-y-3 border-t border-line pt-5 text-sm text-ink-muted">
           <p>
-            ليس لديك حساب؟{" "}
+            تفتح متجرًا جديدًا؟{" "}
             <a href="/register" className="font-semibold text-brand-700 hover:underline">
-              أنشئ متجرك الآن
+              أنشئ حسابًا
             </a>
           </p>
           <p className="leading-relaxed text-[13px]">
-            جلستك محمية، ولا نحفظ كلمة المرور أو رموز الدخول على جهازك.
+            جلستك مشفّرة، ولا تُحفظ كلمة المرور على هذا الجهاز.
           </p>
         </div>
       </CardContent>
