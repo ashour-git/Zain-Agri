@@ -12,6 +12,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.core.messages_ar import to_arabic
+
 logger = logging.getLogger(__name__)
 
 
@@ -100,7 +102,7 @@ def error_body(
     body: dict[str, Any] = {
         "error": {
             "code": code,
-            "message": message,
+            "message": to_arabic(code, message),
             "request_id": getattr(request.state, "request_id", None) if request else None,
         }
     }

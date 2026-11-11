@@ -283,7 +283,7 @@ async def test_a_session_without_a_workspace_cannot_reach_tenant_routes(
     response = await client.get("/api/v1/tenants/current", headers=headers)
 
     assert response.status_code == 403
-    assert response.json()["error"]["message"] == "No workspace selected for this session"
+    assert response.json()["error"]["message"] == "اختر متجرًا أولًا."
 
 
 async def test_deactivating_a_membership_takes_effect_immediately(
@@ -300,7 +300,10 @@ async def test_deactivating_a_membership_takes_effect_immediately(
 
     blocked = await client.get("/api/v1/tenants/current", headers=auth_header(body))
     assert blocked.status_code == 403
-    assert blocked.json()["error"]["message"] == "Your access to this workspace is not active"
+    assert (
+        blocked.json()["error"]["message"]
+        == "عضويتك في هذا المتجر غير مفعّلة. تواصل مع مالك المتجر."
+    )
 
 
 async def test_suspending_a_workspace_takes_effect_immediately(
@@ -317,7 +320,7 @@ async def test_suspending_a_workspace_takes_effect_immediately(
 
     blocked = await client.get("/api/v1/tenants/current", headers=auth_header(body))
     assert blocked.status_code == 403
-    assert blocked.json()["error"]["message"] == "This workspace is suspended"
+    assert blocked.json()["error"]["message"] == "هذا المتجر موقوف حاليًا."
 
 
 async def test_demoting_a_role_takes_effect_immediately(

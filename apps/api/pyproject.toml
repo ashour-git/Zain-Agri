@@ -47,6 +47,8 @@ ignore = ["S101"]
 [tool.ruff.lint.per-file-ignores]
 # Fixture passwords and test-only secrets are not credentials.
 "tests/*" = ["S105", "S106"]
+# A translation table: one message per line reads better than wrapped strings.
+"app/core/messages_ar.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.13"

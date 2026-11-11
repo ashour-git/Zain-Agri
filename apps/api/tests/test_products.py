@@ -369,7 +369,10 @@ async def test_conversion_must_involve_the_base_unit_and_match_dimensions(
         headers=headers,
     )
     assert no_base_unit.status_code == 422
-    assert "base unit" in no_base_unit.json()["error"]["message"].lower()
+    assert (
+        no_base_unit.json()["error"]["message"]
+        == "يجب أن يكون أحد طرفي التحويل هو الوحدة الأساسية للمنتج."
+    )
 
     detail = await client.get(f"/api/v1/products/{product['id']}", headers=headers)
     assert len(detail.json()["conversions"]) == 1

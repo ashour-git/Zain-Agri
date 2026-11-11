@@ -143,7 +143,7 @@ async def test_inactive_account_cannot_log_in(
     )
 
     assert response.status_code == 401
-    assert response.json()["error"]["message"] == "Invalid email or password"
+    assert response.json()["error"]["message"] == "البريد الإلكتروني أو كلمة المرور غير صحيحة."
 
 
 async def test_login_with_single_membership_binds_the_workspace(

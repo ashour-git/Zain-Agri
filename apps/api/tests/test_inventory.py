@@ -67,7 +67,10 @@ async def test_opening_balance_is_allowed_only_once(
     )
 
     assert response.status_code == 409
-    assert "opening balance" in response.json()["error"]["message"].lower()
+    assert (
+        response.json()["error"]["message"]
+        == "الرصيد الافتتاحي سُجّل لهذا المنتج من قبل. استخدم التسوية لتعديل الكمية."
+    )
 
 
 async def test_adjustment_out_reduces_and_cannot_go_negative(
@@ -157,7 +160,10 @@ async def test_unknown_conversion_is_rejected(
     )
 
     assert response.status_code == 422
-    assert "conversion" in response.json()["error"]["message"].lower()
+    assert (
+        response.json()["error"]["message"]
+        == "لا يوجد تحويل مسجّل بين هذه الوحدة والوحدة الأساسية للمنتج."
+    )
 
 
 async def test_future_movement_types_are_not_writable(
@@ -273,7 +279,7 @@ async def test_batches_are_required_when_the_product_tracks_them(
         headers=headers,
     )
     assert missing.status_code == 422
-    assert "batch" in missing.json()["error"]["message"].lower()
+    assert missing.json()["error"]["message"] == "اختر الدفعة، فهذا المنتج يُتابَع بالدفعات."
 
     created = await client.post(
         "/api/v1/inventory/batches",
@@ -375,7 +381,7 @@ async def test_batch_stock_cannot_go_negative(
     )
 
     assert response.status_code == 409
-    assert "batch" in response.json()["error"]["message"].lower()
+    assert response.json()["error"]["message"] == "رصيد هذه الدفعة لا يكفي."
 
 
 async def test_duplicate_batch_number_is_rejected(
