@@ -6,7 +6,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { Field, FormError, SubmitButton } from "@/components/ui/field";
 import { ApiRequestError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-provider";
@@ -64,7 +64,7 @@ export default function RegisterPage() {
   return (
     <Card className="border-0 bg-transparent">
       <CardHeader className="space-y-1.5 p-0 pb-7">
-        <CardTitle className="text-[26px] font-semibold leading-tight">إنشاء حساب جديد</CardTitle>
+        <h1 className="text-[26px] font-semibold leading-tight text-ink">إنشاء حساب جديد</h1>
         <CardDescription>
           أنشئ حسابك أولاً، ثم أنشئ متجرك لتصبح مالكه. خطوتان فقط.
         </CardDescription>
