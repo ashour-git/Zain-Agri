@@ -19,6 +19,19 @@ _BLOCKED_PASSWORDS = {
 }
 
 
+NEW_PASSWORD_MIN_LENGTH = 10
+NEW_PASSWORD_MAX_LENGTH = 128
+
+
+def check_new_password(value: str) -> str:
+    """Rules for any password a user sets (registration, admin reset)."""
+    if not NEW_PASSWORD_MIN_LENGTH <= len(value) <= NEW_PASSWORD_MAX_LENGTH:
+        raise ValueError(
+            f"password must be {NEW_PASSWORD_MIN_LENGTH}-{NEW_PASSWORD_MAX_LENGTH} characters"
+        )
+    return _validate_password(value)
+
+
 def _validate_password(value: str) -> str:
     if value.lower() in _BLOCKED_PASSWORDS:
         raise ValueError("password is too common")

@@ -16,10 +16,10 @@ from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import Settings
+from app.core.config import Settings, get_settings
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, UnauthorizedError
 from app.modules.auth.models import RefreshSession
-from app.modules.auth.schemas import TenantMembershipOut
+from app.modules.auth.schemas import TenantMembershipOut, check_new_password
 from app.modules.auth.security import (
     create_access_token,
     dummy_verify,
@@ -503,3 +503,26 @@ async def purge_expired_sessions(db: AsyncSession, *, older_than_days: int = 90)
     result = await db.execute(delete(RefreshSession).where(RefreshSession.expires_at < cutoff))
     await db.commit()
     return _rowcount(result)
+
+
+async def reset_password(db: AsyncSession, *, email: str, new_password: str) -> bool:
+    """Set a new password and end every open session. Admin use only (reset_password.py).
+
+    Applies the same password rules as registration. Returns False when no
+    account has this email.
+    """
+    check_new_password(new_password)
+
+    user = await _get_user_by_email(db, email.strip().lower())
+    if user is None:
+        return False
+
+    user.password_hash = hash_password(new_password, get_settings())
+    await db.execute(
+        update(RefreshSession)
+        .where(RefreshSession.user_id == user.id, RefreshSession.revoked_at.is_(None))
+        .values(revoked_at=datetime.now(UTC))
+    )
+    await db.commit()
+    logger.info("auth.password_reset", extra={"user_id": str(user.id)})
+    return True
