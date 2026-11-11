@@ -16,12 +16,13 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.core.config import get_settings
+from app.infrastructure.db import timing
 
 
 @lru_cache
 def get_engine() -> AsyncEngine:
     settings = get_settings()
-    return create_async_engine(
+    engine = create_async_engine(
         settings.database_url,
         echo=settings.db_echo,
         # Error messages must not carry bound values: they can be a user's
@@ -32,6 +33,8 @@ def get_engine() -> AsyncEngine:
         pool_pre_ping=True,
         pool_recycle=settings.db_pool_recycle_seconds,
     )
+    timing.install(engine.sync_engine)
+    return engine
 
 
 @lru_cache
