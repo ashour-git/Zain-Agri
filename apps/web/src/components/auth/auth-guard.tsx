@@ -28,10 +28,13 @@ export function AuthGuard({
   children,
   requireTenant = true,
   redirectIfAuthenticated = false,
+  loading,
 }: {
   children: ReactNode;
   requireTenant?: boolean;
   redirectIfAuthenticated?: boolean;
+  /** Shown while the session is checked. Defaults to a centred spinner. */
+  loading?: ReactNode;
 }) {
   const { status, session } = useAuth();
   const router = useRouter();
@@ -56,7 +59,12 @@ export function AuthGuard({
     }
   }, [status, needsTenant, requireTenant, redirectIfAuthenticated, router]);
 
-  if (status === "loading") return <Splash label="جارٍ التحقق من الجلسة…" />;
+  if (status === "loading") {
+    // Sign-in pages hold nothing private: show them at once. A visitor who
+    // turns out to be signed in is redirected by the effect above.
+    if (redirectIfAuthenticated) return <>{children}</>;
+    return loading ?? <Splash label="جارٍ التحقق من الجلسة…" />;
+  }
 
   if (status === "unauthenticated") {
     return redirectIfAuthenticated ? <>{children}</> : <Splash label="جارٍ تحويلك لتسجيل الدخول…" />;
