@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { AuthGuard } from "@/components/auth/auth-guard";
 import { BrandMark, BrandWordmark } from "@/components/brand";
+import { DeveloperCredit } from "@/components/developer-credit";
 
 /* What the product does today, stated plainly. No promises about modules still being built. */
 const FACTS = [
@@ -23,12 +24,13 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
           <div className="flex flex-1 items-center justify-center py-10">
             <div className="w-full max-w-sm">{children}</div>
           </div>
+          <DeveloperCredit className="text-center" />
         </div>
 
         <aside className="hidden flex-col justify-between bg-brand-800 px-10 py-12 text-white lg:flex">
           <div className="max-w-sm">
             <p className="text-[28px] font-semibold leading-snug">
-              المخزون والأسعار والنواقص، في مكان واحد بدل ملف الإكسل.
+              متجرك الزراعي كله، منظَّم في شاشة واحدة.
             </p>
             <ul className="mt-10 space-y-5">
               {FACTS.map((fact) => (

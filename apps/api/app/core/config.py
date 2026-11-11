@@ -12,7 +12,11 @@ from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # .../apps/api/app/core/config.py -> repository root
-REPO_ROOT = Path(__file__).resolve().parents[4]
+_PARENTS = Path(__file__).resolve().parents
+# Locally: <repo>/apps/api/app/core/config.py -> <repo>. On hosts that deploy
+# only apps/api (Vercel services) the tree is shallower; fall back to the
+# filesystem root so import never fails. Missing .env files are simply skipped.
+REPO_ROOT = _PARENTS[4] if len(_PARENTS) > 4 else _PARENTS[-1]
 
 # Deliberately public: the application refuses to start with it in production.
 _DEV_JWT_SECRET = "dev-only-insecure-jwt-secret-change-before-deploy"  # noqa: S105

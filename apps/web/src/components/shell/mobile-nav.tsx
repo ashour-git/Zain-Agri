@@ -6,6 +6,7 @@ import { useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { BrandMark, BrandWordmark } from "@/components/brand";
+import { DeveloperCredit } from "@/components/developer-credit";
 import { NavLists } from "@/components/shell/nav";
 import { WorkspaceSwitch } from "@/components/shell/sidebar";
 import { useDialog } from "@/components/ui/use-dialog";
@@ -63,6 +64,7 @@ export function MobileNav({ workspaceName }: { workspaceName: string }) {
                 </div>
                 <WorkspaceSwitch workspaceName={workspaceName} />
                 <NavLists onNavigate={close} />
+                <DeveloperCredit className="border-t border-line px-6 py-4" />
               </div>
             </div>,
             document.body,

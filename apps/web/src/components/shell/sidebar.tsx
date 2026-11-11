@@ -2,6 +2,7 @@ import { ArrowLeftRight } from "lucide-react";
 import Link from "next/link";
 
 import { BrandMark, BrandWordmark } from "@/components/brand";
+import { DeveloperCredit } from "@/components/developer-credit";
 import { NavLists } from "@/components/shell/nav";
 
 /** The store being worked on, with the way to switch to another one. */
@@ -30,6 +31,7 @@ export function Sidebar({ workspaceName }: { workspaceName: string }) {
       </div>
       <WorkspaceSwitch workspaceName={workspaceName} />
       <NavLists />
+      <DeveloperCredit className="border-t border-line px-6 py-4" />
     </aside>
   );
 }
