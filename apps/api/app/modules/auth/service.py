@@ -505,6 +505,20 @@ async def purge_expired_sessions(db: AsyncSession, *, older_than_days: int = 90)
     return _rowcount(result)
 
 
+async def set_password(db: AsyncSession, user: User, new_password: str) -> None:
+    """Store a new password hash and end every open session. Caller commits."""
+    user.password_hash = hash_password(new_password, get_settings())
+    await db.execute(
+        update(RefreshSession)
+        .where(RefreshSession.user_id == user.id, RefreshSession.revoked_at.is_(None))
+        .values(revoked_at=datetime.now(UTC))
+    )
+
+
+async def get_user_by_email(db: AsyncSession, email: str) -> User | None:
+    return await _get_user_by_email(db, email.strip().lower())
+
+
 async def reset_password(db: AsyncSession, *, email: str, new_password: str) -> bool:
     """Set a new password and end every open session. Admin use only (reset_password.py).
 
@@ -517,12 +531,7 @@ async def reset_password(db: AsyncSession, *, email: str, new_password: str) -> 
     if user is None:
         return False
 
-    user.password_hash = hash_password(new_password, get_settings())
-    await db.execute(
-        update(RefreshSession)
-        .where(RefreshSession.user_id == user.id, RefreshSession.revoked_at.is_(None))
-        .values(revoked_at=datetime.now(UTC))
-    )
+    await set_password(db, user, new_password)
     await db.commit()
     logger.info("auth.password_reset", extra={"user_id": str(user.id)})
     return True

@@ -24,6 +24,10 @@ MESSAGES_AR: dict[str, str] = {
     "Email address is not verified": "لم يتم تأكيد البريد الإلكتروني بعد.",
     "An account with this email already exists": "يوجد حساب مسجّل بهذا البريد الإلكتروني. سجّل الدخول بدلًا من ذلك.",
     "Session not found": "هذه الجلسة غير موجودة أو انتهت بالفعل.",
+    "Invalid or expired reset link": "رابط تغيير كلمة المرور غير صالح أو انتهت صلاحيته. اطلب رابطًا جديدًا.",
+    "password is too common": "كلمة المرور شائعة جدًا. اختر كلمة يصعب تخمينها.",
+    "password must not be only digits": "كلمة المرور لا يجب أن تكون أرقامًا فقط.",
+    "password must be 10-128 characters": "كلمة المرور يجب أن تكون من 10 إلى 128 حرفًا.",
     # --- shops and roles ---
     "No workspace selected for this session": "اختر متجرًا أولًا.",
     "You do not have access to this workspace": "ليست لديك صلاحية الدخول إلى هذا المتجر.",

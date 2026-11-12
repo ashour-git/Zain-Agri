@@ -169,3 +169,14 @@ class TenantMemberOut(BaseModel):
     status: MembershipStatus
     is_active: bool
     created_at: datetime
+
+
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+
+class PasswordResetConfirm(BaseModel):
+    token: str = Field(min_length=20, max_length=200)
+    # Length and strength are checked by the service, so a weak password gets a
+    # specific Arabic message and does not spend the link.
+    new_password: str = Field(max_length=200)

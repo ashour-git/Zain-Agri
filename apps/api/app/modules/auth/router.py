@@ -7,6 +7,7 @@ itself never appears in a response body.
 
 import logging
 import uuid
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, Response, status
@@ -17,17 +18,20 @@ from app.core.config import Settings, get_settings
 from app.core.errors import ForbiddenError, TooManyRequestsError, UnauthorizedError
 from app.core.ratelimit import auth_limiter
 from app.infrastructure.db.session import get_session
-from app.modules.auth import service
+from app.modules.auth import password_reset, service
 from app.modules.auth.cookies import clear_refresh_cookie, set_refresh_cookie
 from app.modules.auth.dependencies import CurrentPrincipal, get_current_tenant
 from app.modules.auth.schemas import (
     LoginRequest,
     MeResponse,
+    PasswordResetConfirm,
+    PasswordResetRequest,
     RefreshRequest,
     RegisterRequest,
     SessionOut,
     TokenResponse,
 )
+from app.modules.backup.mailer import MailerDep
 from app.modules.identity.models import MembershipRole, Tenant, User
 from app.modules.tenancy.context import set_tenant_context
 
@@ -318,5 +322,35 @@ async def revoke_session(
             "user_id": str(principal.user_id),
             "session_id": str(session_id),
         },
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/password-reset/request", status_code=status.HTTP_202_ACCEPTED)
+async def request_password_reset(
+    payload: PasswordResetRequest,
+    request: Request,
+    db: SessionDep,
+    settings: SettingsDep,
+    mailer: MailerDep,
+) -> dict[str, str]:
+    """Always 202 with the same body: never reveals whether the account exists."""
+    _throttle(request, settings, scope="password-reset", subject=str(payload.email))
+    await password_reset.request_reset(
+        db, email=str(payload.email), mailer=mailer, settings=settings, now=datetime.now(UTC)
+    )
+    return {"status": "accepted"}
+
+
+@router.post("/password-reset/confirm", status_code=status.HTTP_204_NO_CONTENT)
+async def confirm_password_reset(
+    payload: PasswordResetConfirm,
+    request: Request,
+    db: SessionDep,
+    settings: SettingsDep,
+) -> Response:
+    _throttle(request, settings, scope="password-reset-confirm")
+    await password_reset.confirm_reset(
+        db, token=payload.token, new_password=payload.new_password, now=datetime.now(UTC)
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
