@@ -22,7 +22,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  const title = TITLES[pathname] ?? "ZAIN AGRI";
+  const title = pathname.startsWith("/inventory/stocktake")
+    ? "الجرد"
+    : (TITLES[pathname] ?? "ZAIN AGRI");
   const workspaceName = session?.tenant?.name ?? "متجر";
   const initial = session?.user.full_name?.trim().charAt(0) || "ز";
 

@@ -91,6 +91,20 @@ async def test_scope_category_counts_only_that_category(
     assert [line["product_id"] for line in lines] == [inside["id"]]
 
 
+async def test_default_name_uses_an_arabic_month(
+    client: AsyncClient, owner_session: AsyncSession
+) -> None:
+    import re
+
+    _, headers, _, _ = await seeded_login(client, owner_session)
+    await _stocked(client, headers)
+
+    stocktake = await _start(client, headers)
+
+    assert re.fullmatch(r"جرد \d{1,2} \S+ \d{4}", stocktake["name"])
+    assert "-" not in stocktake["name"]
+
+
 async def test_only_one_open_stocktake_per_shop(
     client: AsyncClient, owner_session: AsyncSession
 ) -> None:

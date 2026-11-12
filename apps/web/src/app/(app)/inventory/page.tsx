@@ -1,6 +1,6 @@
 "use client";
 
-import { Layers, Loader2, PackageSearch, Plus, SlidersHorizontal } from "lucide-react";
+import { ClipboardCheck, Layers, Loader2, PackageSearch, Plus, SlidersHorizontal } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
@@ -241,7 +241,13 @@ export default function InventoryPage() {
           ))}
         </select>
         {canAdjust ? (
-          <button type="button" onClick={() => openAdjust(null)} className={buttonClass("primary", "md", "ms-auto")}>
+          <Link href="/inventory/stocktake" className={buttonClass("secondary", "md", "ms-auto")}>
+            <ClipboardCheck className="size-4" aria-hidden="true" />
+            جرد
+          </Link>
+        ) : null}
+        {canAdjust ? (
+          <button type="button" onClick={() => openAdjust(null)} className={buttonClass("primary")}>
             <Plus className="size-4" aria-hidden="true" />
             تسوية مخزون
           </button>

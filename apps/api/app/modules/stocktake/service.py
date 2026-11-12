@@ -10,6 +10,7 @@ import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import and_, func, select
 from sqlalchemy.exc import IntegrityError
@@ -50,6 +51,20 @@ from app.modules.stocktake.schemas import (
 logger = logging.getLogger("zain.stocktake")
 
 MAX_CORRECTIONS = 2000
+MONTHS_AR = (
+    "يناير",
+    "فبراير",
+    "مارس",
+    "أبريل",
+    "مايو",
+    "يونيو",
+    "يوليو",
+    "أغسطس",
+    "سبتمبر",
+    "أكتوبر",
+    "نوفمبر",
+    "ديسمبر",
+)
 ALREADY_OPEN = "A stocktake is already open"
 CLOSED = "This stocktake is closed"
 NOT_FOUND = "Stocktake not found"
@@ -110,6 +125,12 @@ async def _get_stocktake(
     return stocktake
 
 
+def _default_name() -> str:
+    """«جرد 13 نوفمبر 2026»: Arabic month so digits never flip in RTL text."""
+    today = datetime.now(ZoneInfo("Africa/Cairo")).date()
+    return f"جرد {today.day} {MONTHS_AR[today.month - 1]} {today.year}"
+
+
 def _difference(line: StocktakeLine) -> Decimal:
     """Counted minus what the system said when this line was counted."""
     assert line.counted_base_quantity is not None
@@ -168,7 +189,7 @@ async def start(
 
     stocktake = Stocktake(
         tenant_id=tenant_id,
-        name=payload.name or f"جرد {datetime.now(UTC).date().isoformat()}",
+        name=payload.name or _default_name(),
         scope=payload.scope.value,
         category_id=payload.category_id if payload.scope == StocktakeScope.CATEGORY else None,
         blind=payload.blind,
