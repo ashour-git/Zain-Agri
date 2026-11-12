@@ -121,6 +121,31 @@ cd apps/api && uv run python migrate.py                        # re-apply grants
 
 Practise this once on a spare Neon branch before you need it.
 
+### Daily backup email to shop owners (5 min)
+
+Each shop owner can get a nightly Excel copy of their own shop in
+**الإعدادات → النسخة اليومية**. Vercel Cron calls
+`/api/v1/internal/backups/run` once a night (01:00 UTC, `vercel.json`); mail
+goes out through a dedicated Gmail account. This is a convenience copy for
+owners, not the database backup above.
+
+1. Create a Gmail account for sending, e.g. `zain.agri.backup@gmail.com`.
+2. Turn on **2-Step Verification**, then **Security → App passwords** and
+   create one. Keep it out of chat and files.
+3. Add the values to Vercel yourself (each command asks for the value):
+
+   ```bash
+   npx -y vercel@65.14.0 env add GMAIL_USER production
+   npx -y vercel@65.14.0 env add GMAIL_APP_PASSWORD production
+   npx -y vercel@65.14.0 env add CRON_SECRET production     # 40+ random characters
+   npx -y vercel@65.14.0 env add PUBLIC_APP_URL production  # https://zain-agri.vercel.app
+   ```
+
+4. Redeploy. Without the Gmail values the page says «الإرسال غير مُعدّ» and
+   nothing is sent; without `CRON_SECRET` the nightly call is refused.
+5. Check: Vercel → **Settings → Cron Jobs → Run**, then the logs show a
+   `backup.run` line with `sent`, `failed`, `skipped`.
+
 ## 7. Releasing an update
 
 1. `git push origin main`. Vercel and Northflank rebuild automatically.
