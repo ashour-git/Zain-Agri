@@ -14,3 +14,12 @@ def test_functions_run_next_to_the_database() -> None:
     config = json.loads(VERCEL_JSON.read_text(encoding="utf-8"))
 
     assert config.get("regions") == ["fra1"]
+
+
+def test_nightly_backup_cron_is_scheduled() -> None:
+    """01:00 UTC is 03:00 Cairo, after closing time (spec 2026-11-12 §4)."""
+    config = json.loads(VERCEL_JSON.read_text(encoding="utf-8"))
+
+    assert config.get("crons") == [
+        {"path": "/api/v1/internal/backups/run", "schedule": "0 1 * * *"}
+    ]

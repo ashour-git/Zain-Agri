@@ -3,6 +3,12 @@
   "regions": [
     "fra1"
   ],
+  "crons": [
+    {
+      "path": "/api/v1/internal/backups/run",
+      "schedule": "0 1 * * *"
+    }
+  ],
   "services": {
     "api": {
       "root": "apps/api",

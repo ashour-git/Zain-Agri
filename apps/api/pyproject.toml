@@ -9,11 +9,13 @@ dependencies = [
     "email-validator>=2.2",
     "fastapi>=0.118",
     "httpx>=0.28",
+    "openpyxl>=3.1",
     "psycopg[binary]>=3.2",
     "pydantic>=2.11",
     "pydantic-settings>=2.10",
     "pyjwt>=2.10",
     "sqlalchemy[asyncio]>=2.0.44",
+    "tzdata>=2024.1",
     "uvicorn[standard]>=0.37",
 ]
 

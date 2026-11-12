@@ -83,6 +83,15 @@ class Settings(BaseSettings):
     assistant_daily_limit: int = 100
     assistant_timeout_seconds: float = 20
 
+    # Daily backup email (spec 2026-11-12). Without both Gmail values the
+    # feature reports "not configured" instead of sending.
+    gmail_user: str | None = None
+    gmail_app_password: SecretStr | None = None
+    # Vercel Cron sends "Authorization: Bearer <CRON_SECRET>".
+    cron_secret: SecretStr | None = None
+    # Base of links in emails (confirmation page).
+    public_app_url: str = "http://localhost:3000"
+
     # Argon2id parameters. Memory cost is in KiB.
     argon2_time_cost: int = 3
     argon2_memory_cost: int = 65536
@@ -99,6 +108,12 @@ class Settings(BaseSettings):
     @property
     def assistant_enabled(self) -> bool:
         return self.groq_api_key is not None and bool(self.groq_api_key.get_secret_value().strip())
+
+    @property
+    def mail_configured(self) -> bool:
+        return bool(self.gmail_user and self.gmail_user.strip()) and bool(
+            self.gmail_app_password and self.gmail_app_password.get_secret_value().strip()
+        )
 
     @property
     def cors_origin_list(self) -> list[str]:
