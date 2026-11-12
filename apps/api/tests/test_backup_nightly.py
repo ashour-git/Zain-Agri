@@ -172,3 +172,26 @@ async def test_failed_shop_does_not_stop_the_others(owner_session: AsyncSession)
     summary = await run_nightly(get_session_factory(), mailer=mailer, now=NOW, sleep=no_sleep)
 
     assert (summary.sent, summary.failed) == (0, 2)
+
+
+async def test_one_broken_shop_does_not_stop_the_night(
+    owner_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.modules.backup import delivery as delivery_module
+
+    real_deliver = delivery_module.deliver
+    _, healthy = await _shop(owner_session, BackupStatus.ACTIVE)
+    broken, _ = await _shop(owner_session, BackupStatus.ACTIVE)
+
+    async def flaky(db: AsyncSession, *, tenant_id: uuid.UUID, **kwargs: object) -> object:
+        if tenant_id == broken.id:
+            raise RuntimeError("connection dropped")
+        return await real_deliver(db, tenant_id=tenant_id, **kwargs)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(delivery_module, "deliver", flaky)
+    mailer = RecordingMailer()
+
+    summary = await run_nightly(get_session_factory(), mailer=mailer, now=NOW)
+
+    assert _to(mailer) == [healthy]
+    assert (summary.sent, summary.failed) == (1, 1)

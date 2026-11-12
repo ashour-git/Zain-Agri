@@ -19,7 +19,15 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.errors import BackupMailNotConfiguredError, ConflictError, TooManyRequestsError
 from app.modules.audit import service as audit
-from app.modules.backup.mailer import GENERIC_AR, Mailer, MailError, OutgoingEmail
+from app.modules.backup.mailer import (
+    GENERIC_AR,
+    REJECTED_AR,
+    SENDER_LOGIN_AR,
+    TOO_LARGE_AR,
+    Mailer,
+    MailError,
+    OutgoingEmail,
+)
 from app.modules.backup.models import BackupDelivery, BackupStatus, DeliveryKind, DeliveryStatus
 from app.modules.backup.service import (
     MANUAL_SENDS_PER_DAY,
@@ -34,6 +42,9 @@ from app.modules.tenancy.context import set_tenant_context
 logger = logging.getLogger("zain.backup")
 
 RETRY_DELAY_SECONDS = 30.0
+PERMANENT_FAILURES = frozenset({REJECTED_AR, SENDER_LOGIN_AR, TOO_LARGE_AR})
+# Gmail allows 25 MB per message; base64 makes an attachment about a third larger.
+MAX_ATTACHMENT_BYTES = 17 * 1024 * 1024
 NOT_CONFIRMED = "Backup email is not confirmed"
 LIMIT_REACHED = "Daily manual backup limit reached"
 Sleep = Callable[[float], Awaitable[None]]
@@ -44,7 +55,10 @@ async def _send_with_retry(
 ) -> None:
     try:
         await mailer.send(message)
-    except MailError:
+    except MailError as exc:
+        # A rejected address or a bad sender login will not fix itself in 30 s.
+        if exc.reason_ar in PERMANENT_FAILURES:
+            raise
         await sleep(retry_delay)
         await mailer.send(message)
 
@@ -81,11 +95,19 @@ async def deliver(
         logger.info("backup.skipped", extra={"tenant_id": str(tenant_id), "reason": "claimed"})
         return None
 
-    tenant = (await db.execute(select(Tenant).where(Tenant.id == tenant_id))).scalar_one()
+    row_id = row.id
+    file_bytes: int | None = None
+    row_counts: dict[str, int] | None = None
+    status: DeliveryStatus = DeliveryStatus.FAILED
+    reason: str | None = GENERIC_AR
     try:
-        built = await build_workbook(db, tenant_id=tenant_id, now=now)
-        row.file_bytes = len(built.content)
-        row.row_counts = built.row_counts
+        tenant = (await db.execute(select(Tenant).where(Tenant.id == tenant_id))).scalar_one()
+        built = await build_workbook(
+            db, tenant_id=tenant_id, now=now, size_cap_bytes=MAX_ATTACHMENT_BYTES
+        )
+        file_bytes, row_counts = len(built.content), built.row_counts
+        if file_bytes > MAX_ATTACHMENT_BYTES:
+            raise MailError(TOO_LARGE_AR)
         message = OutgoingEmail(
             to=row.email,
             subject=f"نسخة متجر {tenant.name} ليوم {day.isoformat()}",
@@ -97,15 +119,22 @@ async def deliver(
             attachment=(built.filename, built.content),
         )
         await _send_with_retry(mailer, message, sleep=sleep, retry_delay=retry_delay)
-        row.status = DeliveryStatus.SENT
-        row.error_reason_ar = None
+        status, reason = DeliveryStatus.SENT, None
     except MailError as exc:
-        row.status = DeliveryStatus.FAILED
-        row.error_reason_ar = exc.reason_ar
+        reason = exc.reason_ar
     except Exception:
         logger.exception("backup.build_failed", extra={"tenant_id": str(tenant_id)})
-        row.status = DeliveryStatus.FAILED
-        row.error_reason_ar = GENERIC_AR
+        # A SQL error leaves the transaction aborted: record the outcome in a
+        # clean one, otherwise the row stays "claimed" and nobody is told.
+        await db.rollback()
+        saved = await db.get(BackupDelivery, row_id)
+        assert saved is not None
+        row = saved
+
+    row.status = status
+    row.error_reason_ar = reason
+    row.file_bytes = file_bytes
+    row.row_counts = row_counts
     await db.commit()
 
     logger.info(
@@ -143,7 +172,7 @@ async def send_now(
     """The owner's «أرسل نسخة الآن»: at most 3 a day, confirmed address only."""
     if mailer is None:
         raise BackupMailNotConfiguredError(NOT_CONFIGURED)
-    settings_row = await load_settings(db, tenant_id)
+    settings_row = await load_settings(db, tenant_id, for_update=True)
     if settings_row is None or settings_row.status != BackupStatus.ACTIVE:
         raise ConflictError(NOT_CONFIRMED)
     if await manual_sends_today(db, tenant_id, cairo_date(now)) >= MANUAL_SENDS_PER_DAY:
@@ -170,7 +199,9 @@ async def send_now(
     return row
 
 
-RUN_DEADLINE_SECONDS = 240.0  # Vercel Hobby allows 300 s per invocation
+# Vercel Hobby kills an invocation at 300 s. One shop can take a build plus
+# two SMTP attempts and a 30 s pause, so stop starting shops well before.
+RUN_DEADLINE_SECONDS = 150.0
 
 
 @dataclass
@@ -213,16 +244,22 @@ async def run_nightly(
         if clock() - started > deadline_seconds:
             summary.remaining = len(due) - index
             break
-        async with session_factory() as db:
-            await set_tenant_context(db, tenant_id)
-            row = await deliver(
-                db,
-                tenant_id=tenant_id,
-                kind=DeliveryKind.NIGHTLY,
-                mailer=mailer,
-                now=now,
-                sleep=sleep,
-            )
+        try:
+            async with session_factory() as db:
+                await set_tenant_context(db, tenant_id)
+                row = await deliver(
+                    db,
+                    tenant_id=tenant_id,
+                    kind=DeliveryKind.NIGHTLY,
+                    mailer=mailer,
+                    now=now,
+                    sleep=sleep,
+                )
+        except Exception:
+            # One shop must never cost every shop after it their backup.
+            logger.exception("backup.shop_failed", extra={"tenant_id": str(tenant_id)})
+            summary.failed += 1
+            continue
         if row is None:
             summary.skipped += 1
         elif row.status == DeliveryStatus.SENT:

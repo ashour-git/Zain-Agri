@@ -152,7 +152,7 @@ export default function BackupSettingsPage() {
               النسخة اليومية
             </CardTitle>
             <CardDescription>
-              كل ليلة بين 3 و4 صباحًا يصلك ملف Excel فيه منتجات متجرك ورصيدها وحركاتها وسجل
+              قبل فجر كل يوم يصلك ملف Excel فيه منتجات متجرك ورصيدها وحركاتها وسجل
               النشاط. الملف يخص متجرك وحده.
             </CardDescription>
           </CardHeader>

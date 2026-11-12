@@ -10,8 +10,14 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
-from app.core.errors import AppError, BackupMailNotConfiguredError, UnprocessableError
+from app.core.errors import (
+    AppError,
+    BackupMailNotConfiguredError,
+    TooManyRequestsError,
+    UnprocessableError,
+)
 from app.modules.audit import service as audit
+from app.modules.audit.models import AuditLog
 from app.modules.backup.mailer import Mailer, MailError, OutgoingEmail
 from app.modules.backup.models import (
     BackupDelivery,
@@ -21,7 +27,7 @@ from app.modules.backup.models import (
     DeliveryStatus,
 )
 from app.modules.backup.schemas import BackupStatusOut
-from app.modules.backup.workbook import cairo_date
+from app.modules.backup.workbook import CAIRO, cairo_date
 from app.modules.identity.models import Tenant
 from app.modules.tenancy.context import set_tenant_context
 
@@ -30,6 +36,9 @@ logger = logging.getLogger("zain.backup")
 CONFIRM_TTL = timedelta(hours=24)
 MANUAL_SENDS_PER_DAY = 3
 INVALID_LINK = "Invalid or expired confirmation link"
+TOO_MANY_LINKS = "Too many confirmation emails today"
+# Confirmation emails share the Gmail quota with the backups themselves.
+CONFIRM_EMAILS_PER_DAY = 5
 NOT_CONFIGURED = "Backup email sending is not configured"
 
 
@@ -37,10 +46,14 @@ def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-async def load_settings(db: AsyncSession, tenant_id: uuid.UUID) -> BackupSettings | None:
-    return (
-        await db.execute(select(BackupSettings).where(BackupSettings.tenant_id == tenant_id))
-    ).scalar_one_or_none()
+async def load_settings(
+    db: AsyncSession, tenant_id: uuid.UUID, *, for_update: bool = False
+) -> BackupSettings | None:
+    query = select(BackupSettings).where(BackupSettings.tenant_id == tenant_id)
+    if for_update:
+        # Serialises "send now" clicks so the daily cap cannot be raced past.
+        query = query.with_for_update()
+    return (await db.execute(query)).scalar_one_or_none()
 
 
 async def manual_sends_today(db: AsyncSession, tenant_id: uuid.UUID, today: date) -> int:
@@ -147,6 +160,24 @@ async def set_address(
     row = await load_settings(db, tenant.id)
     if row is not None and row.email == email and row.status == BackupStatus.ACTIVE:
         return await get_status(db, tenant_id=tenant.id, mail_configured=True, now=now)
+
+    day_start = now.astimezone(CAIRO).replace(hour=0, minute=0, second=0, microsecond=0)
+    links_today = (
+        await db.execute(
+            select(func.count())
+            .select_from(AuditLog)
+            .where(
+                AuditLog.tenant_id == tenant.id,
+                AuditLog.action == "backup.address_set",
+                AuditLog.created_at >= day_start,
+            )
+        )
+    ).scalar_one()
+    if links_today >= CONFIRM_EMAILS_PER_DAY:
+        midnight = day_start + timedelta(days=1)
+        raise TooManyRequestsError(
+            TOO_MANY_LINKS, retry_after=max(int((midnight - now).total_seconds()), 1)
+        )
 
     token = secrets.token_urlsafe(32)
     if row is None:

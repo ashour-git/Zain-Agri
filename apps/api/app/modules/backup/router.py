@@ -77,10 +77,11 @@ async def send_backup_now(
     context: Owner, principal: CurrentPrincipal, db: SessionDep, mailer: MailerDep
 ) -> BackupStatusOut:
     now = _now()
+    tenant_id = context.tenant.id  # read before a rollback in send_now can expire it
     await delivery.send_now(
-        db, tenant_id=context.tenant.id, actor_id=principal.user_id, mailer=mailer, now=now
+        db, tenant_id=tenant_id, actor_id=principal.user_id, mailer=mailer, now=now
     )
-    return await service.get_status(db, tenant_id=context.tenant.id, mail_configured=True, now=now)
+    return await service.get_status(db, tenant_id=tenant_id, mail_configured=True, now=now)
 
 
 def _require_cron_secret(settings: Settings, authorization: str | None) -> None:

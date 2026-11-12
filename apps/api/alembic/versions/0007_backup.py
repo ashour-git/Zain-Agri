@@ -39,7 +39,8 @@ AS $$
           WHERE d.tenant_id = s.tenant_id
             AND d.delivery_date = p_date
             AND d.kind = 'nightly'
-            AND d.status IN ('sent', 'claimed')
+            -- One attempt per night: sent, in progress or failed all count.
+            AND d.status IN ('sent', 'claimed', 'failed')
       )
     ORDER BY s.tenant_id
 $$

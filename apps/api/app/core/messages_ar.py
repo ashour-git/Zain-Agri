@@ -72,6 +72,7 @@ MESSAGES_AR: dict[str, str] = {
     "Backup email is not confirmed": "أكّد عنوان البريد أولًا.",
     "Daily manual backup limit reached": "وصلت للحد اليومي: 3 نسخ يدوية. حاول غدًا.",
     "Backup email sending is not configured": "الإرسال غير مُعدّ.",
+    "Too many confirmation emails today": "أرسلنا روابط تأكيد كثيرة اليوم. حاول غدًا.",
     # --- framework-level ---
     "Request validation failed": "بعض البيانات المُدخلة غير صالحة. راجعها ثم حاول مرة أخرى.",
     "Internal server error": "حدث خطأ غير متوقع. حاول مرة أخرى بعد قليل.",

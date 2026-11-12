@@ -213,3 +213,18 @@ async def test_token_never_stored_in_clear(
 
     assert row.confirm_token_hash == hashlib.sha256(token.encode()).hexdigest()
     assert row.confirm_token_hash != token
+
+
+async def test_confirmation_emails_capped_per_day(
+    client: AsyncClient, owner_session: AsyncSession, mailer: RecordingMailer
+) -> None:
+    _, headers, _, _ = await seeded_login(client, owner_session)
+    for n in range(5):
+        ok = await client.put(BACKUP, json={"email": f"o{n}@example.com"}, headers=headers)
+        assert ok.status_code == 200, ok.text
+
+    sixth = await client.put(BACKUP, json={"email": "o6@example.com"}, headers=headers)
+
+    assert sixth.status_code == 429
+    assert sixth.json()["error"]["message"] == "أرسلنا روابط تأكيد كثيرة اليوم. حاول غدًا."
+    assert len(mailer.sent) == 5

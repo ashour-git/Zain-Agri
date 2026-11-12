@@ -101,7 +101,8 @@ async def test_due_tenants_lists_only_active_unsent(
     due = await _due(db_session, TODAY)
 
     assert active.id in due
-    assert failed_today.id in due
+    # One attempt per night: a failed night waits for tomorrow (spec §4).
+    assert failed_today.id not in due
     assert pending.id not in due
     assert already_sent.id not in due
 

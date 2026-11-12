@@ -217,3 +217,17 @@ async def test_size_cap_trims_to_twelve_months(
     assert built.trimmed is True
     assert notes == ["حديثة"]
     assert "آخر 12 شهرًا" in str(_about(built)["ملاحظة"])
+
+
+async def test_control_characters_are_stripped(
+    db_session: AsyncSession, owner_session: AsyncSession
+) -> None:
+    """Scanners put GS (0x1d) inside GS1 barcodes; Excel files cannot hold it."""
+    tenant = await make_tenant(owner_session)
+    product = await make_product_row(owner_session, tenant, sku="GS1-1")
+    product.barcode = "010628517260101"
+    await owner_session.commit()
+
+    ws = _sheets(await _build(db_session, tenant))[SHEET_PRODUCTS]
+
+    assert ws.cell(row=2, column=2).value == "010628517260101"

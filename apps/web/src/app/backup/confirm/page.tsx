@@ -58,7 +58,7 @@ function ConfirmResult() {
         {done ? "تم تأكيد البريد" : "لم يتم التأكيد"}
       </h1>
       <p className="text-sm leading-relaxed text-ink-muted">
-        {done ? "ستصلك أول نسخة من بيانات متجرك الليلة بين 3 و4 صباحًا." : outcome.message}
+        {done ? "ستصلك أول نسخة من بيانات متجرك قبل فجر الغد." : outcome.message}
       </p>
       <Link href="/settings/backup" className={buttonClass("primary")}>
         {done ? "فتح إعدادات النسخة اليومية" : "الذهاب إلى الإعدادات"}

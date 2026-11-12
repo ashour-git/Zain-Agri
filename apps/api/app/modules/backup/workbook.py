@@ -1,7 +1,7 @@
 """Build one shop's backup workbook (spec 2026-11-12 §3).
 
-The caller sets the tenant context first; every query here also filters by
-``tenant_id`` so a missing context fails closed instead of leaking.
+The caller sets the tenant context first. Every base query also filters by
+``tenant_id``; joined tables are reached only through this shop's own rows.
 """
 
 import uuid
@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 
 from openpyxl import Workbook
 from openpyxl.cell import Cell, WriteOnlyCell
+from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE
 from openpyxl.styles import Font
 from openpyxl.worksheet._write_only import WriteOnlyWorksheet
 from sqlalchemy import and_, func, select
@@ -46,7 +47,7 @@ from app.modules.identity.models import Tenant, User
 from app.modules.inventory.models import InventoryBalance, ProductBatch, StockMovement
 
 CAIRO = ZoneInfo("Africa/Cairo")
-DEFAULT_SIZE_CAP_BYTES = 20 * 1024 * 1024
+DEFAULT_SIZE_CAP_BYTES = 17 * 1024 * 1024  # under Gmail's 25 MB after base64
 TRIM_WINDOW = timedelta(days=365)
 _FORMULA_PREFIXES = ("=", "+", "-", "@")
 _DATE_FORMAT = "yyyy-mm-dd hh:mm"
@@ -79,6 +80,10 @@ class _Writer:
         self.counts: dict[str, int] = {}
 
     def _cell(self, ws: WriteOnlyWorksheet, value: Any) -> Cell:
+        if isinstance(value, str):
+            # Control characters (e.g. GS 0x1d in scanned GS1 barcodes) are
+            # not allowed in .xlsx and would fail the whole file.
+            value = ILLEGAL_CHARACTERS_RE.sub("", value)
         cell = WriteOnlyCell(ws, value=value)
         if isinstance(value, str) and value.startswith(_FORMULA_PREFIXES):
             cell.data_type = "s"  # shop text, never a formula
