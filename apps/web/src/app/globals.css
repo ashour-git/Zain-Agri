@@ -1,37 +1,39 @@
 @import "tailwindcss";
 
 /*
- * ZAIN AGRI design tokens.
+ * ZAIN AGRI design tokens, taken from the shop sign of «مؤسسة زين للتنمية الزراعية».
  *
- * The product replaces a shop's Excel workbook, so the interface reads like a
- * well-kept ledger: a cool paper ground, one field green for action, wheat
- * ochre for "needs attention", red only for real problems. Surfaces are flat
- * and separated by hairlines; elevation is reserved for dialogs.
+ * The interface still reads like a well-kept ledger: flat panels, hairlines,
+ * elevation only for dialogs. The colours are the sign's: the green of its
+ * name band for action, the yellow of its «مؤسسة» plaque for "needs
+ * attention", red only for real problems. The lime of the logo's leaves stays
+ * inside the logo (components/brand.tsx) and is never used for text.
  */
 @theme {
   --font-sans: "Readex Pro Variable", "Segoe UI", Tahoma, ui-sans-serif, system-ui, sans-serif;
 
-  /* Field green: primary actions, current location, positive stock. */
-  --color-brand-50: #f0f5f1;
-  --color-brand-100: #dce8df;
-  --color-brand-200: #b9d1bf;
-  --color-brand-300: #8db399;
-  --color-brand-400: #5e9070;
-  --color-brand-500: #3d7352;
-  --color-brand-600: #2a6040;
-  --color-brand-700: #1f5130;
-  --color-brand-800: #1a4328;
-  --color-brand-900: #153621;
-  --color-brand-950: #0c2114;
+  /* Sign green: primary actions, current location, positive stock. */
+  --color-brand-50: #eef7f0;
+  --color-brand-100: #d4ecda;
+  --color-brand-200: #a9d8b4;
+  --color-brand-300: #77bd88;
+  --color-brand-400: #43a05e;
+  --color-brand-500: #26874a;
+  --color-brand-600: #1d7a41;
+  --color-brand-700: #17703a;
+  --color-brand-800: #125a2f;
+  --color-brand-900: #0e4825;
+  --color-brand-950: #072a15;
 
-  /* Wheat ochre: low stock, pending, "look at this". */
-  --color-accent-50: #fbf5e8;
-  --color-accent-100: #f5e6c4;
-  --color-accent-300: #e2bb6a;
-  --color-accent-400: #d39d3a;
-  --color-accent-500: #b7791f;
-  --color-accent-600: #94601a;
-  --color-accent-700: #774c17;
+  /* Plaque yellow: low stock, pending, "look at this". 50-500 are fills;
+     600-700 are deep enough to be read as text on white. */
+  --color-accent-50: #fffbe5;
+  --color-accent-100: #fff3b8;
+  --color-accent-300: #f8dc5a;
+  --color-accent-400: #f5cf1d;
+  --color-accent-500: #e3b90c;
+  --color-accent-600: #8a6d00;
+  --color-accent-700: #6b5500;
 
   --color-surface: #f6f7f4;
   --color-panel: #ffffff;
