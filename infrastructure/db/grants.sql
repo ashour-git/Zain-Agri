@@ -39,6 +39,16 @@ BEGIN
             EXECUTE 'REVOKE ALL ON FUNCTION app_user_tenants(uuid) FROM PUBLIC';
             EXECUTE 'GRANT EXECUTE ON FUNCTION app_user_tenants(uuid) TO zain_app';
         END IF;
+        -- Daily backup email (migration 0007): due-shop ids for the nightly
+        -- job, and the shop named by a confirmation-link token. Ids only.
+        IF to_regprocedure('app_backup_due_tenants(date)') IS NOT NULL THEN
+            EXECUTE 'REVOKE ALL ON FUNCTION app_backup_due_tenants(date) FROM PUBLIC';
+            EXECUTE 'GRANT EXECUTE ON FUNCTION app_backup_due_tenants(date) TO zain_app';
+        END IF;
+        IF to_regprocedure('app_backup_token_tenant(text)') IS NOT NULL THEN
+            EXECUTE 'REVOKE ALL ON FUNCTION app_backup_token_tenant(text) FROM PUBLIC';
+            EXECUTE 'GRANT EXECUTE ON FUNCTION app_backup_token_tenant(text) TO zain_app';
+        END IF;
     ELSE
         RAISE NOTICE 'role zain_app does not exist - skipping grants';
     END IF;

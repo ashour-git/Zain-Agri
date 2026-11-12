@@ -13,6 +13,7 @@ from app.core.config import get_settings
 from app.infrastructure.db.base import Base
 from app.modules.audit import models as _audit_models  # noqa: F401  (registers metadata)
 from app.modules.auth import models as _auth_models  # noqa: F401  (registers metadata)
+from app.modules.backup import models as _backup_models  # noqa: F401  (registers metadata)
 from app.modules.catalog import models as _catalog_models  # noqa: F401  (registers metadata)
 from app.modules.identity import models as _models  # noqa: F401  (registers metadata)
 from app.modules.inventory import models as _inventory_models  # noqa: F401  (registers metadata)
