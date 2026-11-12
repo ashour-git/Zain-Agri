@@ -53,6 +53,14 @@ class GmailMailer:
         self._user = user
         self._password = app_password
 
+    def _password_shape(self) -> str:
+        """Length and character class only, never the value: a Google app
+        password is exactly 16 lowercase letters."""
+        kind = "a-z" if self._password.isascii() and self._password.isalpha() else "other"
+        if kind == "a-z" and not self._password.islower():
+            kind = "A-Z"
+        return f"{len(self._password)}:{kind}"
+
     def _build(self, message: OutgoingEmail) -> EmailMessage:
         mail = EmailMessage()
         mail["From"] = f"ZAIN AGRI <{self._user}>"
@@ -85,7 +93,10 @@ class GmailMailer:
             raise MailError(TOO_LARGE_AR if exc.smtp_code == 552 else GENERIC_AR) from exc
         except smtplib.SMTPServerDisconnected as exc:
             # Gmail hangs up during AUTH when the login itself is malformed.
-            logger.error("backup.mail.disconnected", extra={"error": type(exc).__name__})
+            logger.error(
+                "backup.mail.disconnected",
+                extra={"error": type(exc).__name__, "secret_shape": self._password_shape()},
+            )
             raise MailError(SENDER_LOGIN_AR) from exc
         except (smtplib.SMTPException, OSError) as exc:
             logger.warning("backup.mail.failed", extra={"error": type(exc).__name__})

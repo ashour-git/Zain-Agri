@@ -36,6 +36,7 @@ _EXTRA_FIELDS = (
     "skipped",
     "remaining",
     "configured",
+    "secret_shape",
 )
 
 
