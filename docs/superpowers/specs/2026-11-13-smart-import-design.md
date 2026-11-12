@@ -30,7 +30,7 @@ people who have no sheet at all.
 
 ## 2. Flow
 
-1. **Upload** `.xlsx` or `.csv`, up to 4 MB and 500 data rows (a larger sheet is split; measured: about 15 s per 1,000 products on a local database, live timing to be confirmed).
+1. **Upload** `.xlsx` or `.csv`, up to 4 MB and 500 data rows (a larger sheet is split; measured on the live site: 100 products in 2.9 s, about 29 ms each, so 500 rows is roughly 15 s).
 2. **Columns.** The server reads the sheet, finds the header row, and returns the
    columns with three sample values each. The assistant proposes a field for each
    column; the owner can change any of them. A badge says whether the proposal
