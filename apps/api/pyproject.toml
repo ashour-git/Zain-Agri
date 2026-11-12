@@ -26,6 +26,7 @@ dev = [
     "pytest>=8.4",
     "pytest-asyncio>=1.2",
     "ruff>=0.13",
+    "types-openpyxl>=3.1.5.20261017",
 ]
 
 [tool.uv]

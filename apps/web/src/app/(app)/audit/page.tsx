@@ -37,6 +37,10 @@ const ACTION_LABELS: Record<string, string> = {
   "inventory.movement.created": "حركة مخزون",
   "batch.created": "إضافة دفعة",
   "assistant.asked": "سؤال للمساعد",
+  "backup.address_set": "تعيين بريد النسخة اليومية",
+  "backup.confirmed": "تأكيد بريد النسخة اليومية",
+  "backup.stopped": "إيقاف النسخة اليومية",
+  "backup.manual_send": "إرسال نسخة يدوية",
 };
 
 const ACTION_VARIANTS: Record<string, "brand" | "warning" | "neutral"> = {
