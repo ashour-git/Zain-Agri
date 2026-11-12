@@ -11,6 +11,8 @@ import getpass
 import smtplib
 import sys
 
+from app.modules.backup.mailer import gmail_login
+
 
 def main() -> int:
     if len(sys.argv) != 2:
@@ -21,7 +23,7 @@ def main() -> int:
     print(f"Password length: {len(password)} (a Google app password has 16 letters)")
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30) as smtp:
-            smtp.login(user, password)
+            gmail_login(smtp, user, password)
     except smtplib.SMTPAuthenticationError as exc:
         print(f"REFUSED by Google: {exc.smtp_code} {exc.smtp_error.decode(errors='replace')}")
         return 1

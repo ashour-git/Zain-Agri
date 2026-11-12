@@ -248,3 +248,28 @@ def test_app_password_whitespace_is_ignored() -> None:
     assert isinstance(mailer, GmailMailer)
     assert mailer._password == "abcdefghijklmnop"
     assert mailer._user == "shop@gmail.com"
+
+
+def test_gmail_login_uses_auth_login() -> None:
+    """Gmail hangs up on AUTH PLAIN; the mailer must ask for AUTH LOGIN."""
+    from app.modules.backup.mailer import gmail_login
+
+    calls: list[tuple[str, bool]] = []
+
+    class FakeSMTP:
+        user = password = ""
+
+        def ehlo_or_helo_if_needed(self) -> None:
+            return None
+
+        def auth_login(self, challenge: bytes | None = None) -> str:
+            return ""
+
+        def auth(self, mechanism: str, authobject: object, *, initial_response_ok: bool) -> None:
+            calls.append((mechanism, initial_response_ok))
+
+    smtp = FakeSMTP()
+    gmail_login(smtp, "shop@gmail.com", "abcdefghijklmnop")  # type: ignore[arg-type]
+
+    assert calls == [("LOGIN", False)]
+    assert (smtp.user, smtp.password) == ("shop@gmail.com", "abcdefghijklmnop")

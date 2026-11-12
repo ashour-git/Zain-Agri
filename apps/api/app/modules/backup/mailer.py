@@ -48,6 +48,18 @@ class Mailer(Protocol):
     async def send(self, message: OutgoingEmail) -> None: ...
 
 
+def gmail_login(smtp: smtplib.SMTP, user: str, password: str) -> None:
+    """Log in with AUTH LOGIN.
+
+    smtplib.login() prefers AUTH PLAIN, and Gmail now hangs up on AUTH PLAIN
+    (SMTPServerDisconnected) instead of answering, even for a correct app
+    password. AUTH LOGIN gets a real reply: 235 on success, 535 when refused.
+    """
+    smtp.ehlo_or_helo_if_needed()
+    smtp.user, smtp.password = user, password
+    smtp.auth("LOGIN", smtp.auth_login, initial_response_ok=False)
+
+
 class GmailMailer:
     def __init__(self, user: str, app_password: str) -> None:
         self._user = user
@@ -76,7 +88,7 @@ class GmailMailer:
 
     def _send_blocking(self, mail: EmailMessage) -> None:
         with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=SMTP_TIMEOUT_SECONDS) as smtp:
-            smtp.login(self._user, self._password)
+            gmail_login(smtp, self._user, self._password)
             smtp.send_message(mail)
 
     async def send(self, message: OutgoingEmail) -> None:
