@@ -67,6 +67,11 @@ MESSAGES_AR: dict[str, str] = {
     "Insufficient stock in this batch": "رصيد هذه الدفعة لا يكفي.",
     "Archived products cannot receive new batches": "لا يمكن إضافة دفعة لمنتج مؤرشف.",
     "A batch with this number already exists for the product": "توجد دفعة بهذا الرقم لنفس المنتج.",
+    # --- daily backup email ---
+    "Invalid or expired confirmation link": "رابط التأكيد غير صالح أو انتهت صلاحيته. احفظ العنوان مرة أخرى لإرسال رابط جديد.",
+    "Backup email is not confirmed": "أكّد عنوان البريد أولًا.",
+    "Daily manual backup limit reached": "وصلت للحد اليومي: 3 نسخ يدوية. حاول غدًا.",
+    "Backup email sending is not configured": "الإرسال غير مُعدّ.",
     # --- framework-level ---
     "Request validation failed": "بعض البيانات المُدخلة غير صالحة. راجعها ثم حاول مرة أخرى.",
     "Internal server error": "حدث خطأ غير متوقع. حاول مرة أخرى بعد قليل.",
@@ -100,6 +105,7 @@ FALLBACK_BY_CODE: dict[str, str] = {
     "unprocessable": "لا يمكن تنفيذ هذا الطلب بالبيانات الحالية.",
     "validation_error": "بعض البيانات المُدخلة غير صالحة. راجعها ثم حاول مرة أخرى.",
     "rate_limited": "محاولات كثيرة. انتظر بضع دقائق ثم حاول مرة أخرى.",
+    "backup_mail_not_configured": "الإرسال غير مُعدّ.",
     "http_error": "تعذّر إكمال الطلب. حاول مرة أخرى.",
     "internal_error": "حدث خطأ غير متوقع. حاول مرة أخرى بعد قليل.",
 }

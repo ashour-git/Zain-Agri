@@ -17,6 +17,7 @@ from app.modules.assistant.router import close_llm
 from app.modules.assistant.router import router as assistant_router
 from app.modules.audit.router import router as audit_router
 from app.modules.auth.router import router as auth_router
+from app.modules.backup.router import router as backup_router
 from app.modules.catalog.router import router as catalog_router
 from app.modules.health.router import router as health_router
 from app.modules.inventory.router import router as inventory_router
@@ -70,6 +71,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(inventory_router)
     app.include_router(audit_router)
     app.include_router(assistant_router)
+    app.include_router(backup_router)
     return app
 
 

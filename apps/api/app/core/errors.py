@@ -87,6 +87,11 @@ class AssistantUnavailableError(AppError):
     code = "assistant_unavailable"
 
 
+class BackupMailNotConfiguredError(AppError):
+    status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    code = "backup_mail_not_configured"
+
+
 class TooManyRequestsError(AppError):
     status_code = status.HTTP_429_TOO_MANY_REQUESTS
     code = "rate_limited"
