@@ -75,26 +75,29 @@ async def _issue_link(
         )
         return
 
+    # Plain values: a rollback below expires ORM objects, and reading an
+    # expired attribute in async SQLAlchemy is an error, not a reload.
+    user_id, user_email = user.id, user.email
     token = secrets.token_urlsafe(32)
     db.add(
         PasswordResetToken(
-            user_id=user.id, token_hash=_hash(token), expires_at=now + LINK_TTL, created_at=now
+            user_id=user_id, token_hash=_hash(token), expires_at=now + LINK_TTL, created_at=now
         )
     )
     await db.flush()
     link = f"{settings.public_app_url.rstrip('/')}/reset-password?token={token}"
     try:
-        await mailer.send(_email(user.email, link))
+        await mailer.send(_email(user_email, link))
     except MailError:
         await db.rollback()
         logger.warning(
             "auth.password_reset_requested",
-            extra={"event": "reset.mail_failed", "user_id": str(user.id)},
+            extra={"event": "reset.mail_failed", "user_id": str(user_id)},
         )
         return
     await db.commit()
     logger.info(
-        "auth.password_reset_requested", extra={"event": "reset.sent", "user_id": str(user.id)}
+        "auth.password_reset_requested", extra={"event": "reset.sent", "user_id": str(user_id)}
     )
 
 

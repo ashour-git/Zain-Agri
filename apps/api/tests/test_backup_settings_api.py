@@ -228,3 +228,23 @@ async def test_confirmation_emails_capped_per_day(
     assert sixth.status_code == 429
     assert sixth.json()["error"]["message"] == "أرسلنا روابط تأكيد كثيرة اليوم. حاول غدًا."
     assert len(mailer.sent) == 5
+
+
+def test_app_password_whitespace_is_ignored() -> None:
+    from pydantic import SecretStr
+
+    from app.core.config import get_settings
+    from app.modules.backup.mailer import GmailMailer, get_mailer
+
+    settings = get_settings().model_copy(
+        update={
+            "gmail_user": " shop@gmail.com ",
+            "gmail_app_password": SecretStr("abcd efgh ijkl mnop\r\n"),
+        }
+    )
+
+    mailer = get_mailer(settings)
+
+    assert isinstance(mailer, GmailMailer)
+    assert mailer._password == "abcdefghijklmnop"
+    assert mailer._user == "shop@gmail.com"

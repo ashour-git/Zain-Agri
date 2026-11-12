@@ -83,6 +83,10 @@ class GmailMailer:
         except smtplib.SMTPDataError as exc:
             # 552: message exceeds Gmail's size limit.
             raise MailError(TOO_LARGE_AR if exc.smtp_code == 552 else GENERIC_AR) from exc
+        except smtplib.SMTPServerDisconnected as exc:
+            # Gmail hangs up during AUTH when the login itself is malformed.
+            logger.error("backup.mail.disconnected", extra={"error": type(exc).__name__})
+            raise MailError(SENDER_LOGIN_AR) from exc
         except (smtplib.SMTPException, OSError) as exc:
             logger.warning("backup.mail.failed", extra={"error": type(exc).__name__})
             raise MailError(GENERIC_AR) from exc
@@ -92,7 +96,11 @@ def get_mailer(settings: Settings) -> Mailer | None:
     if not settings.mail_configured:
         return None
     assert settings.gmail_user is not None and settings.gmail_app_password is not None
-    return GmailMailer(settings.gmail_user.strip(), settings.gmail_app_password.get_secret_value())
+    # Google shows app passwords as four groups with spaces, and a value pasted
+    # into a terminal can carry a CR or newline. None of it is part of the
+    # password, and a stray line break makes Gmail drop the SMTP login.
+    password = "".join(settings.gmail_app_password.get_secret_value().split())
+    return GmailMailer(settings.gmail_user.strip(), password)
 
 
 def mailer_dependency() -> Mailer | None:

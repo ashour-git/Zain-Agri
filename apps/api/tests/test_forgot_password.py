@@ -217,3 +217,16 @@ async def test_unknown_email_waits_as_long_as_a_real_send(
     await client.post(REQUEST, json={"email": "nobody-at-all@example.com"})
 
     assert time.monotonic() - started >= 0.3
+
+
+async def test_mail_failure_still_answers_the_same(
+    client: AsyncClient, owner_session: AsyncSession, mailer: RecordingMailer
+) -> None:
+    """Gmail refusing the login must not turn into a 500 (or reveal the account)."""
+    email = await _user(owner_session)
+    mailer.always_fail = "تعذّر الإرسال. سنحاول في الليلة القادمة."
+
+    response = await client.post(REQUEST, json={"email": email})
+
+    assert response.status_code == 202
+    assert response.json() == {"status": "accepted"}
