@@ -1,6 +1,7 @@
 "use client";
 
-import { Archive, Loader2, PackageSearch, Pencil, Plus, RotateCcw, Tags } from "lucide-react";
+import { Archive, FileSpreadsheet, Loader2, PackageSearch, Pencil, Plus, RotateCcw, Tags } from "lucide-react";
+import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 
@@ -284,6 +285,12 @@ export default function ProductsPage() {
               <Tags className="size-4" aria-hidden="true" />
               التصنيفات
             </button>
+          ) : null}
+          {can("products.create") && can("inventory.adjust") ? (
+            <Link href="/products/import" className={buttonClass("secondary", "md")}>
+              <FileSpreadsheet className="size-4" aria-hidden="true" />
+              استيراد من ملف
+            </Link>
           ) : null}
           {can("products.create") ? (
             <button type="button" onClick={openCreate} className={buttonClass("primary", "md")}>

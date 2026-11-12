@@ -148,20 +148,25 @@ type RequestOptions = {
   anonymous?: boolean;
   /** Internal: the retry after a silent refresh must not recurse. */
   isRetry?: boolean;
+  /** Send this file or blob as the raw request body (used to upload a spreadsheet). */
+  rawBody?: Blob;
+  /** Return the response as a Blob (used to download the blank template). */
+  blob?: boolean;
 };
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = "GET", body, anonymous = false, isRetry = false } = options;
+  const { method = "GET", body, anonymous = false, isRetry = false, rawBody, blob = false } = options;
 
-  const headers: Record<string, string> = { Accept: "application/json" };
-  if (body !== undefined) headers["Content-Type"] = "application/json";
+  const headers: Record<string, string> = { Accept: blob ? "*/*" : "application/json" };
+  if (rawBody !== undefined) headers["Content-Type"] = "application/octet-stream";
+  else if (body !== undefined) headers["Content-Type"] = "application/json";
   if (!anonymous && accessToken) headers.Authorization = `Bearer ${accessToken}`;
 
   const response = await fetch(`${API_BASE}${path}`, {
     method,
     credentials: "include",
     headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: rawBody !== undefined ? rawBody : body === undefined ? undefined : JSON.stringify(body),
   });
 
   if (response.status === 401 && !anonymous && !isRetry) {
@@ -172,6 +177,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 
   if (!response.ok) throw await toError(response);
   if (response.status === 204) return undefined as T;
+  if (blob) return (await response.blob()) as T;
   return (await response.json()) as T;
 }
 

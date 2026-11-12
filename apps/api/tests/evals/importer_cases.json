@@ -1,0 +1,113 @@
+[
+  {
+    "name": "standard Arabic sheet",
+    "columns": [
+      {"header": "البيان", "samples": ["يوريا 46%", "بذور خيار", "مبيد 1 لتر"], "expect": "name_ar"},
+      {"header": "الوحدة", "samples": ["شيكارة", "علبة", "لتر"], "expect": "unit"},
+      {"header": "السعر", "samples": ["450", "30", "85"], "expect": "sale_price"},
+      {"header": "الكمية", "samples": ["40", "25", "12"], "expect": "quantity"}
+    ]
+  },
+  {
+    "name": "English headers",
+    "columns": [
+      {"header": "Item", "samples": ["Urea 46%", "Cucumber seeds"], "expect": "name_ar"},
+      {"header": "Unit", "samples": ["bag", "pack"], "expect": "unit"},
+      {"header": "Price", "samples": ["450", "30"], "expect": "sale_price"},
+      {"header": "Qty", "samples": ["40", "25"], "expect": "quantity"},
+      {"header": "Barcode", "samples": ["6221234567890", "6229876543210"], "expect": "barcode"},
+      {"header": "Brand", "samples": ["Delta", "Misr"], "expect": "brand"}
+    ]
+  },
+  {
+    "name": "Egyptian colloquial headers",
+    "columns": [
+      {"header": "الصنف", "samples": ["يوريا", "سلة بلاستيك", "خرطوم ري"], "expect": "name_ar"},
+      {"header": "الموجود", "samples": ["40", "8", "6"], "expect": "quantity"},
+      {"header": "الثمن", "samples": ["450", "15", "120"], "expect": "sale_price"},
+      {"header": "الشركة المصنعة", "samples": ["الدلتا", "مصر", "النيل"], "expect": "brand"}
+    ]
+  },
+  {
+    "name": "stocktake style",
+    "columns": [
+      {"header": "اسم المنتج", "samples": ["يوريا 46%", "بذور طماطم"], "expect": "name_ar"},
+      {"header": "الجرد الفعلي", "samples": ["38", "22"], "expect": "quantity"},
+      {"header": "وحدة القياس", "samples": ["شيكارة", "علبة"], "expect": "unit"},
+      {"header": "القسم", "samples": ["أسمدة", "بذور"], "expect": "category"}
+    ]
+  },
+  {
+    "name": "item number and count",
+    "columns": [
+      {"header": "رقم الصنف", "samples": ["1001", "1002", "1003"], "expect": "sku"},
+      {"header": "اسم الصنف", "samples": ["يوريا", "كبريت زراعي", "مبيد فطري"], "expect": "name_ar"},
+      {"header": "العدد", "samples": ["40", "15", "9"], "expect": "quantity"}
+    ]
+  },
+  {
+    "name": "reorder level and cost",
+    "columns": [
+      {"header": "الصنف", "samples": ["يوريا", "بذور"], "expect": "name_ar"},
+      {"header": "الرصيد", "samples": ["40", "25"], "expect": "quantity"},
+      {"header": "حد الطلب", "samples": ["10", "5"], "expect": "minimum_stock"},
+      {"header": "سعر الشراء", "samples": ["380", "22"], "expect": "cost_price"},
+      {"header": "سعر البيع", "samples": ["450", "30"], "expect": "sale_price"}
+    ]
+  },
+  {
+    "name": "columns that must be ignored",
+    "columns": [
+      {"header": "الصنف", "samples": ["يوريا", "بذور"], "expect": "name_ar"},
+      {"header": "المورد", "samples": ["شركة النيل", "الدلتا للتجارة"], "expect": null},
+      {"header": "ملاحظات", "samples": ["جديد", "عرض"], "expect": null},
+      {"header": "تاريخ الشراء", "samples": ["2026-10-01", "2026-10-15"], "expect": null},
+      {"header": "الكمية", "samples": ["40", "25"], "expect": "quantity"}
+    ]
+  },
+  {
+    "name": "customer data next to products",
+    "columns": [
+      {"header": "اسم العميل", "samples": ["احمد", "محمود"], "expect": null},
+      {"header": "رقم الهاتف", "samples": ["01012345678", "01198765432"], "expect": null},
+      {"header": "الصنف", "samples": ["يوريا", "بذور"], "expect": "name_ar"},
+      {"header": "الكمية", "samples": ["3", "1"], "expect": "quantity"}
+    ]
+  },
+  {
+    "name": "mixed English and Arabic",
+    "columns": [
+      {"header": "Product Name", "samples": ["Urea", "Seeds"], "expect": "name_ar"},
+      {"header": "Cost", "samples": ["380", "22"], "expect": "cost_price"},
+      {"header": "Sell Price", "samples": ["450", "30"], "expect": "sale_price"},
+      {"header": "Stock", "samples": ["40", "25"], "expect": "quantity"},
+      {"header": "Group", "samples": ["أسمدة", "بذور"], "expect": "category"}
+    ]
+  },
+  {
+    "name": "headers with stretched letters",
+    "columns": [
+      {"header": "الصنــف", "samples": ["يوريا", "بذور"], "expect": "name_ar"},
+      {"header": "السعـر", "samples": ["450", "30"], "expect": "sale_price"},
+      {"header": "الكميـه", "samples": ["40", "25"], "expect": "quantity"}
+    ]
+  },
+  {
+    "name": "abbreviations",
+    "columns": [
+      {"header": "الصنف", "samples": ["يوريا", "بذور"], "expect": "name_ar"},
+      {"header": "ع.البيع", "samples": ["450", "30"], "expect": "sale_price"},
+      {"header": "ع.الشراء", "samples": ["380", "22"], "expect": "cost_price"},
+      {"header": "الرصيد", "samples": ["40", "25"], "expect": "quantity"}
+    ]
+  },
+  {
+    "name": "group and brand words",
+    "columns": [
+      {"header": "المجموعة", "samples": ["أسمدة", "مبيدات", "بذور"], "expect": "category"},
+      {"header": "الماركة", "samples": ["الدلتا", "مصر", "النيل"], "expect": "brand"},
+      {"header": "الصنف", "samples": ["يوريا", "مبيد", "بذور"], "expect": "name_ar"},
+      {"header": "الباركود", "samples": ["6221234567890", "6221234567891"], "expect": "barcode"}
+    ]
+  }
+]

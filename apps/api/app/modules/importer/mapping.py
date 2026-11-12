@@ -47,7 +47,7 @@ class Column:
 # "الحد الأدنى للكمية" a minimum, not a quantity.
 _RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("barcode", ("باركود", "بار كود", "barcode", "ean")),
-    ("sku", ("كود", "رمز", "sku", "code")),
+    ("sku", ("كود", "رمز", "رقم", "sku", "code")),
     ("cost_price", ("شراء", "تكلفه", "تكلفة", "cost", "purchase")),
     ("minimum_stock", ("حد", "ادني", "اقل", "min", "reorder")),
     ("quantity", ("كميه", "رصيد", "جرد", "مخزون", "عدد", "qty", "quantity", "stock", "balance")),
@@ -74,11 +74,42 @@ def _matches(header: str, word: str) -> bool:
     return normalized in header
 
 
+# Columns about people, dates or notes never describe a product, even when they
+# contain a word like «اسم» («اسم العميل» is not the product name).
+_NOT_PRODUCT = (
+    "عميل",
+    "زبون",
+    "مورد",
+    "ملاحظ",
+    "ملحوظ",
+    "تاريخ",
+    "هاتف",
+    "تليفون",
+    "موبايل",
+    "عنوان",
+    "customer",
+    "client",
+    "supplier",
+    "vendor",
+    "note",
+    "date",
+    "phone",
+    "tel",
+    "address",
+)
+
+
+def _about_something_else(header: str) -> bool:
+    return any(_matches(header, word) for word in _NOT_PRODUCT)
+
+
 def rules_mapping(columns: list[Column]) -> dict[int, str]:
     mapping: dict[int, str] = {}
     taken: set[str] = set()
     for column in columns:
         header = normalize_name(column.header)
+        if _about_something_else(header):
+            continue
         for field, words in _RULES:
             if field not in taken and any(_matches(header, word) for word in words):
                 mapping[column.index] = field

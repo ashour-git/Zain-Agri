@@ -254,3 +254,16 @@ async def test_instructions_hidden_in_a_cell_cannot_widen_the_mapping() -> None:
     mapping, _ = await propose_mapping(columns, llm)
 
     assert mapping == {}
+
+
+def test_columns_about_other_people_or_notes_are_never_product_fields() -> None:
+    assert rules_mapping(_columns("اسم العميل", "الصنف")) == {1: "name_ar"}
+    assert rules_mapping(_columns("المورد", "اسم الصنف")) == {1: "name_ar"}
+    assert rules_mapping(_columns("ملاحظات", "رقم الهاتف", "اسم الصنف")) == {2: "name_ar"}
+    assert rules_mapping(_columns("Customer name", "Item")) == {1: "name_ar"}
+    assert rules_mapping(_columns("تاريخ الشراء", "الصنف")) == {1: "name_ar"}
+
+
+def test_item_number_is_the_code_not_the_name() -> None:
+    assert rules_mapping(_columns("رقم الصنف", "اسم الصنف")) == {0: "sku", 1: "name_ar"}
+    assert rules_mapping(_columns("رقم الباركود", "الصنف")) == {0: "barcode", 1: "name_ar"}

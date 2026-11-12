@@ -24,7 +24,9 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const title = pathname.startsWith("/inventory/stocktake")
     ? "الجرد"
-    : (TITLES[pathname] ?? "ZAIN AGRI");
+    : pathname === "/products/import"
+      ? "استيراد المنتجات"
+      : (TITLES[pathname] ?? "ZAIN AGRI");
   const workspaceName = session?.tenant?.name ?? "متجر";
   const initial = session?.user.full_name?.trim().charAt(0) || "ز";
 
