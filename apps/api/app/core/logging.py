@@ -25,6 +25,17 @@ _EXTRA_FIELDS = (
     "error_code",
     "reason",
     "tool",
+    # Daily backup email. Never addresses or file contents.
+    "kind",
+    "result",
+    "file_bytes",
+    "rows",
+    "error",
+    "sent",
+    "failed",
+    "skipped",
+    "remaining",
+    "configured",
 )
 
 

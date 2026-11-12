@@ -10,7 +10,7 @@ from app.core.config import Settings, get_settings
 from app.infrastructure.db.session import get_session
 from app.modules.auth.dependencies import CurrentPrincipal, TenantContext, require_permission
 from app.modules.authorization.permissions import Permission
-from app.modules.backup import service
+from app.modules.backup import delivery, service
 from app.modules.backup.mailer import MailerDep
 from app.modules.backup.schemas import BackupSettingsIn, BackupStatusOut, ConfirmIn
 
@@ -65,3 +65,14 @@ async def confirm_backup_address(payload: ConfirmIn, db: SessionDep) -> Response
     """Opened from the emailed link; works without signing in."""
     await service.confirm(db, token=payload.token, now=_now())
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(f"{SETTINGS_PATH}/send", response_model=BackupStatusOut)
+async def send_backup_now(
+    context: Owner, principal: CurrentPrincipal, db: SessionDep, mailer: MailerDep
+) -> BackupStatusOut:
+    now = _now()
+    await delivery.send_now(
+        db, tenant_id=context.tenant.id, actor_id=principal.user_id, mailer=mailer, now=now
+    )
+    return await service.get_status(db, tenant_id=context.tenant.id, mail_configured=True, now=now)
