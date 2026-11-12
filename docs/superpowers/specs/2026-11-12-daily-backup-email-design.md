@@ -107,9 +107,8 @@ Rules:
    across tenants.
 2. Each shop is then processed inside its own tenant context, with the same
    row-level security as a normal request.
-3. A `backup_deliveries` row per shop per Cairo date, unique on
-   `(tenant_id, delivery_date, kind)` where kind is `nightly` or `manual`,
-   is claimed by insert before building the file. A duplicate cron call
+3. A `backup_deliveries` row (kind `nightly`) per shop per Cairo date is
+   claimed by insert before building the file (partial unique index, §5). A duplicate cron call
    loses the insert and skips that shop: no double emails.
 4. The run stops starting new shops after 4 minutes (function limit 5).
    Unreached shops are picked up by the next run.
@@ -143,8 +142,9 @@ New table `backup_settings` (one row per tenant, RLS-scoped like other tenant ta
 New table `backup_deliveries` (RLS-scoped): `id`, `tenant_id`,
 `delivery_date` (Cairo date), `kind`, `status` (`claimed` | `sent` | `failed`),
 `error_reason_ar`, `file_bytes`, `row_counts` (jsonb), timestamps.
-Unique `(tenant_id, delivery_date, kind)`. Manual sends use their own kind
-and a count check (max 3 per day) instead of the unique key.
+A partial unique index on `(tenant_id, delivery_date) WHERE kind = 'nightly'`
+makes the nightly claim atomic. Manual sends are not unique; a count check
+caps them at 3 per Cairo day.
 
 ## 6. API
 
@@ -152,7 +152,7 @@ and a count check (max 3 per day) instead of the unique key.
 |---|---|---|---|
 | GET | `/api/v1/tenants/current/backup` | owner | settings + last delivery status |
 | PUT | `/api/v1/tenants/current/backup` | owner | set address → pending, sends link |
-| POST | `/api/v1/tenants/current/backup/confirm` | anyone with token | body `{token}`; confirm address |
+| POST | `/api/v1/backup/confirm` | anyone with token | body `{token}`; confirm address (no session, so not under `/tenants/current`) |
 | POST | `/api/v1/tenants/current/backup/send` | owner | manual send now (max 3/day) |
 | DELETE | `/api/v1/tenants/current/backup` | owner | stop |
 | POST | `/api/v1/internal/backups/run` | cron secret | nightly run |
