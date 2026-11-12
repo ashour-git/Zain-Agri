@@ -14,6 +14,7 @@ has no movements at all. Anything else is a compensating adjustment.
 """
 
 import uuid
+from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
@@ -405,46 +406,53 @@ async def _locked_balance(
     return balance
 
 
-async def record_movement(
+@dataclass(frozen=True)
+class AppliedMovement:
+    movement: StockMovement
+    balance_before: Decimal
+    balance_after: Decimal
+
+
+async def apply_movement(
     db: AsyncSession,
     *,
-    context: TenantContext,
+    tenant_id: uuid.UUID,
     actor_id: uuid.UUID,
-    payload: AdjustmentRequest,
-) -> AdjustmentOut:
-    if payload.movement_type not in IMPLEMENTED_MOVEMENT_TYPES:
-        raise UnprocessableError(f"{payload.movement_type.value} is not writable yet")
-    if payload.unit_cost is not None and not context.allows(Permission.INVENTORY_VIEW_COST):
-        raise ForbiddenError(
-            "Your role cannot record costs",
-            details={"permission": Permission.INVENTORY_VIEW_COST.value},
-        )
-    if payload.unit_cost is not None and payload.movement_type not in INBOUND_MOVEMENT_TYPES:
+    product_id: uuid.UUID,
+    movement_type: StockMovementType,
+    quantity: Decimal,
+    unit_id: uuid.UUID,
+    reason: str,
+    batch_id: uuid.UUID | None = None,
+    unit_cost: Decimal | None = None,
+    reference_type: str | None = None,
+    reference_id: uuid.UUID | None = None,
+) -> AppliedMovement:
+    """Validate and write one movement in the caller's transaction (no commit).
+
+    Callers that post several movements (a stocktake) commit once, so the
+    whole set is applied or none of it is.
+    """
+    if movement_type not in IMPLEMENTED_MOVEMENT_TYPES:
+        raise UnprocessableError(f"{movement_type.value} is not writable yet")
+    if unit_cost is not None and movement_type not in INBOUND_MOVEMENT_TYPES:
         raise UnprocessableError("Cost can only be recorded on inbound movements")
 
     product = await db.scalar(
-        select(Product).where(
-            Product.id == payload.product_id, Product.tenant_id == context.tenant.id
-        )
+        select(Product).where(Product.id == product_id, Product.tenant_id == tenant_id)
     )
     if product is None:
         raise NotFoundError("Product not found")
     if product.status is ProductStatus.ARCHIVED:
         raise ConflictError("Archived products cannot receive stock movements")
 
-    factor = await _conversion_factor(
-        db,
-        tenant_id=context.tenant.id,
-        product=product,
-        unit_id=payload.unit_id,
-    )
+    factor = await _conversion_factor(db, tenant_id=tenant_id, product=product, unit_id=unit_id)
 
     batch: ProductBatch | None = None
-    if payload.batch_id is not None:
+    if batch_id is not None:
         batch = await db.scalar(
             select(ProductBatch).where(
-                ProductBatch.id == payload.batch_id,
-                ProductBatch.tenant_id == context.tenant.id,
+                ProductBatch.id == batch_id, ProductBatch.tenant_id == tenant_id
             )
         )
         if batch is None:
@@ -456,22 +464,21 @@ async def record_movement(
     elif product.tracks_batches:
         raise UnprocessableError("A batch is required for this product")
 
-    balance = await _locked_balance(db, tenant_id=context.tenant.id, product_id=product.id)
+    balance = await _locked_balance(db, tenant_id=tenant_id, product_id=product.id)
     balance_before = _q4(balance.quantity)
 
-    if payload.movement_type is StockMovementType.OPENING_BALANCE:
-        prior = await db.scalar(
-            select(func.count(StockMovement.id)).where(
-                StockMovement.tenant_id == context.tenant.id,
-                StockMovement.product_id == product.id,
-            )
+    if movement_type is StockMovementType.OPENING_BALANCE:
+        # Once per product, or once per batch for a batch-tracked product.
+        prior_query = select(func.count(StockMovement.id)).where(
+            StockMovement.tenant_id == tenant_id,
+            StockMovement.product_id == product.id,
         )
-        if prior:
+        if batch is not None:
+            prior_query = prior_query.where(StockMovement.batch_id == batch.id)
+        if await db.scalar(prior_query):
             raise ConflictError("An opening balance can only be recorded once per product")
 
-    signed = (
-        payload.quantity if payload.movement_type in INBOUND_MOVEMENT_TYPES else -payload.quantity
-    )
+    signed = quantity if movement_type in INBOUND_MOVEMENT_TYPES else -quantity
     base_delta = _q4(signed * factor)
     if base_delta == 0:
         raise UnprocessableError("Quantity is too small for the product's precision")
@@ -487,7 +494,7 @@ async def record_movement(
         batch_quantity = (
             await db.execute(
                 select(func.coalesce(func.sum(StockMovement.base_quantity), Decimal("0"))).where(
-                    StockMovement.tenant_id == context.tenant.id,
+                    StockMovement.tenant_id == tenant_id,
                     StockMovement.batch_id == batch.id,
                 )
             )
@@ -504,15 +511,17 @@ async def record_movement(
             )
 
     movement = StockMovement(
-        tenant_id=context.tenant.id,
+        tenant_id=tenant_id,
         product_id=product.id,
         batch_id=batch.id if batch else None,
-        movement_type=payload.movement_type,
-        quantity=payload.quantity,
-        unit_id=payload.unit_id,
+        movement_type=movement_type,
+        quantity=quantity,
+        unit_id=unit_id,
         base_quantity=base_delta,
-        unit_cost=payload.unit_cost,
-        notes=payload.reason,
+        unit_cost=unit_cost,
+        reference_type=reference_type,
+        reference_id=reference_id,
+        notes=reason,
         created_by=actor_id,
     )
     db.add(movement)
@@ -521,7 +530,7 @@ async def record_movement(
 
     await audit.record(
         db,
-        tenant_id=context.tenant.id,
+        tenant_id=tenant_id,
         actor_id=actor_id,
         action="inventory.movement.created",
         entity_type="stock_movement",
@@ -536,23 +545,51 @@ async def record_movement(
             "unit_cost": movement.unit_cost,
         },
         meta={
-            "reason": payload.reason,
+            "reason": reason,
             "balance_before": balance_before,
             "balance_after": balance_after,
         },
     )
+    return AppliedMovement(movement, balance_before, balance_after)
+
+
+async def record_movement(
+    db: AsyncSession,
+    *,
+    context: TenantContext,
+    actor_id: uuid.UUID,
+    payload: AdjustmentRequest,
+) -> AdjustmentOut:
+    if payload.unit_cost is not None and not context.allows(Permission.INVENTORY_VIEW_COST):
+        raise ForbiddenError(
+            "Your role cannot record costs",
+            details={"permission": Permission.INVENTORY_VIEW_COST.value},
+        )
+    applied = await apply_movement(
+        db,
+        tenant_id=context.tenant.id,
+        actor_id=actor_id,
+        product_id=payload.product_id,
+        movement_type=payload.movement_type,
+        quantity=payload.quantity,
+        unit_id=payload.unit_id,
+        reason=payload.reason,
+        batch_id=payload.batch_id,
+        unit_cost=payload.unit_cost,
+    )
+    movement_id = applied.movement.id
     await db.commit()
 
     movement_out = await _movement_out(
         db,
         tenant_id=context.tenant.id,
-        movement_id=movement.id,
+        movement_id=movement_id,
         view_cost=context.allows(Permission.INVENTORY_VIEW_COST),
     )
     return AdjustmentOut(
         movement=movement_out,
-        balance_before=balance_before,
-        balance_after=balance_after,
+        balance_before=applied.balance_before,
+        balance_after=applied.balance_after,
     )
 
 

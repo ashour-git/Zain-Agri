@@ -56,6 +56,8 @@ IMPLEMENTED_MOVEMENT_TYPES: frozenset[StockMovementType] = frozenset(
         StockMovementType.OPENING_BALANCE,
         StockMovementType.ADJUSTMENT_IN,
         StockMovementType.ADJUSTMENT_OUT,
+        StockMovementType.DAMAGE,
+        StockMovementType.EXPIRY,
     }
 )
 

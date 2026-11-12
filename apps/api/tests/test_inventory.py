@@ -574,3 +574,106 @@ async def test_balance_row_requires_a_real_product(
             ),
             {"tenant": str(tenant.id), "product": str(uuid.uuid4())},
         )
+
+
+# --- stocktake groundwork -------------------------------------------------------
+
+
+async def test_damage_and_expiry_are_writable_outbound_movements(
+    client: AsyncClient, owner_session: AsyncSession
+) -> None:
+    _, headers, _, _ = await seeded_login(client, owner_session)
+    product = await create_product_api(client, headers)
+    await adjust_api(client, headers, product_id=product["id"], quantity="10")
+
+    damaged = await adjust_api(
+        client,
+        headers,
+        product_id=product["id"],
+        movement_type="damage",
+        quantity="3",
+        reason="جرد: تالف",
+    )
+    expired = await adjust_api(
+        client,
+        headers,
+        product_id=product["id"],
+        movement_type="expiry",
+        quantity="2",
+        reason="جرد: منتهي",
+    )
+
+    assert Decimal(damaged["balance_after"]) == Decimal("7")
+    assert Decimal(expired["balance_after"]) == Decimal("5")
+
+
+async def test_opening_balance_is_allowed_once_per_batch(
+    client: AsyncClient, owner_session: AsyncSession
+) -> None:
+    _, headers, _, _ = await seeded_login(client, owner_session)
+    product = await create_product_api(client, headers, tracks_batches=True)
+    batch_ids = []
+    for number in ("B-1", "B-2"):
+        created = await client.post(
+            "/api/v1/inventory/batches",
+            json={"product_id": product["id"], "batch_number": number},
+            headers=headers,
+        )
+        assert created.status_code == 201, created.text
+        batch_ids.append(created.json()["id"])
+
+    for batch_id, quantity in zip(batch_ids, ("5", "7"), strict=True):
+        await adjust_api(
+            client, headers, product_id=product["id"], quantity=quantity, batch_id=batch_id
+        )
+    again = await adjust_api(
+        client,
+        headers,
+        product_id=product["id"],
+        quantity="1",
+        batch_id=batch_ids[0],
+        expected=409,
+    )
+
+    assert again["error"]["code"] == "conflict"
+    listing = (await client.get("/api/v1/inventory", headers=headers)).json()["items"]
+    assert Decimal(listing[0]["quantity"]) == Decimal("12")
+
+
+async def test_every_balance_equals_the_sum_of_its_movements(
+    client: AsyncClient, owner_session: AsyncSession
+) -> None:
+    from sqlalchemy import text
+
+    _, headers, tenant, _ = await seeded_login(client, owner_session)
+    product = await create_product_api(client, headers)
+    await adjust_api(client, headers, product_id=product["id"], quantity="10")
+    await adjust_api(
+        client, headers, product_id=product["id"], movement_type="adjustment_out", quantity="4"
+    )
+    await adjust_api(
+        client, headers, product_id=product["id"], movement_type="damage", quantity="1"
+    )
+    await adjust_api(
+        client, headers, product_id=product["id"], movement_type="adjustment_in", quantity="2"
+    )
+
+    rows = (
+        await owner_session.execute(
+            text(
+                """
+                SELECT b.quantity AS balance,
+                       COALESCE(SUM(m.base_quantity), 0) AS moved
+                FROM inventory_balances b
+                LEFT JOIN stock_movements m
+                  ON m.tenant_id = b.tenant_id AND m.product_id = b.product_id
+                WHERE b.tenant_id = :t
+                GROUP BY b.product_id, b.quantity
+                """
+            ),
+            {"t": tenant.id},
+        )
+    ).all()
+
+    assert rows and all(row.balance == row.moved for row in rows)
+    assert rows[0].balance == Decimal("7")
