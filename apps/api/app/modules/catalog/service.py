@@ -342,30 +342,37 @@ def _conflict_from_integrity(exc: IntegrityError, fallback: str) -> ConflictErro
     return ConflictError(fallback)
 
 
-async def create_product(
+async def create_product_core(
     db: AsyncSession,
     *,
     context: TenantContext,
     actor_id: uuid.UUID,
     payload: ProductCreate,
-) -> ProductDetailOut:
+    validated: bool = False,
+) -> Product:
+    """Validate and add one product in the caller's transaction (no commit).
+
+    ``validated=True`` skips the reference and uniqueness lookups for callers
+    (the importer) that have already checked every row against the database.
+    """
     if payload.cost_price is not None and not context.allows(Permission.INVENTORY_VIEW_COST):
         raise ForbiddenError(
             "Your role cannot set cost prices",
             details={"permission": Permission.INVENTORY_VIEW_COST.value},
         )
 
-    unit_ids = [
-        unit_id
-        for unit_id in (payload.base_unit_id, payload.purchase_unit_id, payload.sale_unit_id)
-        if unit_id is not None
-    ]
-    await _ensure_units(db, list(dict.fromkeys(unit_ids)))
-    await _ensure_category(db, context.tenant.id, payload.category_id)
-    await _ensure_brand(db, context.tenant.id, payload.brand_id)
-    await _ensure_product_unique(
-        db, tenant_id=context.tenant.id, sku=payload.sku, barcode=payload.barcode
-    )
+    if not validated:
+        unit_ids = [
+            unit_id
+            for unit_id in (payload.base_unit_id, payload.purchase_unit_id, payload.sale_unit_id)
+            if unit_id is not None
+        ]
+        await _ensure_units(db, list(dict.fromkeys(unit_ids)))
+        await _ensure_category(db, context.tenant.id, payload.category_id)
+        await _ensure_brand(db, context.tenant.id, payload.brand_id)
+        await _ensure_product_unique(
+            db, tenant_id=context.tenant.id, sku=payload.sku, barcode=payload.barcode
+        )
 
     product = Product(tenant_id=context.tenant.id, **payload.model_dump())
     db.add(product)
@@ -384,11 +391,23 @@ async def create_product(
         entity_id=product.id,
         after_state=_product_state(product),
     )
+    return product
+
+
+async def create_product(
+    db: AsyncSession,
+    *,
+    context: TenantContext,
+    actor_id: uuid.UUID,
+    payload: ProductCreate,
+) -> ProductDetailOut:
+    product = await create_product_core(db, context=context, actor_id=actor_id, payload=payload)
+    product_id = product.id
     await db.commit()
     return await get_product(
         db,
         tenant_id=context.tenant.id,
-        product_id=product.id,
+        product_id=product_id,
         view_cost=context.allows(Permission.INVENTORY_VIEW_COST),
     )
 
