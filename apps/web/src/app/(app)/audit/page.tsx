@@ -44,6 +44,7 @@ const ACTION_LABELS: Record<string, string> = {
   "stocktake.started": "بدء جرد",
   "stocktake.applied": "اعتماد جرد",
   "stocktake.cancelled": "إلغاء جرد",
+  "import.committed": "استيراد منتجات",
 };
 
 const ACTION_VARIANTS: Record<string, "brand" | "warning" | "neutral"> = {

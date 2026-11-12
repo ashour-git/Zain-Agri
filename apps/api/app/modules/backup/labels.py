@@ -40,6 +40,7 @@ AUDIT_ACTION_LABELS_AR: dict[str, str] = {
     "stocktake.started": "بدء جرد",
     "stocktake.applied": "اعتماد جرد",
     "stocktake.cancelled": "إلغاء جرد",
+    "import.committed": "استيراد منتجات",
 }
 
 ENTITY_LABELS_AR: dict[str, str] = {
@@ -51,6 +52,7 @@ ENTITY_LABELS_AR: dict[str, str] = {
     "batch": "دفعة",
     "assistant": "المساعد",
     "stocktake": "جرد",
+    "import": "استيراد",
     "backup": "النسخة اليومية",
 }
 

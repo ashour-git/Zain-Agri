@@ -17,6 +17,8 @@ from app.core.messages_ar import FALLBACK_BY_CODE, MESSAGES_AR, to_arabic
 
 ARABIC = re.compile(r"[؀-ۿ]")
 LATIN_WORD = re.compile(r"[A-Za-z]{3,}")
+# File-format names are what a user sees on their file, so they stay in Latin.
+FILE_FORMATS = re.compile(r"\b(?:Excel|xlsx|xls|csv)\b")
 APP_DIR = Path(__file__).resolve().parents[1] / "app"
 
 
@@ -74,7 +76,7 @@ def test_every_raised_message_has_an_arabic_version() -> None:
 def test_translations_contain_no_english_words() -> None:
     for english, arabic in MESSAGES_AR.items():
         assert ARABIC.search(arabic), english
-        assert not LATIN_WORD.search(arabic), (english, arabic)
+        assert not LATIN_WORD.search(FILE_FORMATS.sub("", arabic)), (english, arabic)
 
 
 @pytest.mark.parametrize(

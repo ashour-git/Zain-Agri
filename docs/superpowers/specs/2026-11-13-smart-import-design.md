@@ -30,7 +30,7 @@ people who have no sheet at all.
 
 ## 2. Flow
 
-1. **Upload** `.xlsx` or `.csv`, up to 4 MB and 2,000 data rows.
+1. **Upload** `.xlsx` or `.csv`, up to 4 MB and 500 data rows (a larger sheet is split; measured: about 15 s per 1,000 products on a local database, live timing to be confirmed).
 2. **Columns.** The server reads the sheet, finds the header row, and returns the
    columns with three sample values each. The assistant proposes a field for each
    column; the owner can change any of them. A badge says whether the proposal
@@ -100,7 +100,7 @@ Formulas are never evaluated: the sheet is read for its saved values only.
 - Skipped when the product exists: same `sku`, same `barcode`, or same normalized
   name and unit. Importing the same sheet twice creates nothing the second time.
 - One audit entry `import.committed` with counts; each product and movement is also
-  audited by the existing paths. Limit 2,000 rows per import.
+  audited by the existing paths. Limit 500 rows per import.
 
 ## 6. API
 

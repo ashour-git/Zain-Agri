@@ -13,7 +13,7 @@
 - Formulas never evaluated: `load_workbook(read_only=True, data_only=True)`.
 - Data sent to the model: header text and up to 3 sample values per column; phone/email-like values redacted. Model output is data: only the fixed field names are accepted.
 - Commit refuses rows with problems unless `skip_errors` is set (addition to the spec, stated in the UI).
-- Row limit is set from a measured timing (target: well under the function time limit); the spec is updated if it differs from 2,000.
+- Row limit: 500 per import (local measurement: 1,000 products took 14.8 s to commit); confirm on the live database.
 - Commits: `git -c user.name="ZAIN AGRI" -c user.email="dev@zain-agri.local"`, trailer `Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>`.
 
 ## Review Focus
