@@ -155,7 +155,7 @@ caps them at 3 per Cairo day.
 | POST | `/api/v1/backup/confirm` | anyone with token | body `{token}`; confirm address (no session, so not under `/tenants/current`) |
 | POST | `/api/v1/tenants/current/backup/send` | owner | manual send now (max 3/day) |
 | DELETE | `/api/v1/tenants/current/backup` | owner | stop |
-| POST | `/api/v1/internal/backups/run` | cron secret | nightly run |
+| GET (Vercel Cron) or POST | `/api/v1/internal/backups/run` | cron secret | nightly run |
 
 Errors use the existing envelope and get Arabic messages in `messages_ar.py`.
 

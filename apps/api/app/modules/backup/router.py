@@ -1,13 +1,17 @@
 """Daily backup email routes (spec 2026-11-12 §6)."""
 
+import hmac
+import logging
+from dataclasses import asdict
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Header, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings, get_settings
-from app.infrastructure.db.session import get_session
+from app.core.errors import UnauthorizedError
+from app.infrastructure.db.session import get_session, get_session_factory
 from app.modules.auth.dependencies import CurrentPrincipal, TenantContext, require_permission
 from app.modules.authorization.permissions import Permission
 from app.modules.backup import delivery, service
@@ -15,6 +19,7 @@ from app.modules.backup.mailer import MailerDep
 from app.modules.backup.schemas import BackupSettingsIn, BackupStatusOut, ConfirmIn
 
 router = APIRouter(tags=["backup"])
+logger = logging.getLogger("zain.backup")
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 SettingsDep = Annotated[Settings, Depends(get_settings)]
@@ -76,3 +81,24 @@ async def send_backup_now(
         db, tenant_id=context.tenant.id, actor_id=principal.user_id, mailer=mailer, now=now
     )
     return await service.get_status(db, tenant_id=context.tenant.id, mail_configured=True, now=now)
+
+
+def _require_cron_secret(settings: Settings, authorization: str | None) -> None:
+    expected = settings.cron_secret.get_secret_value() if settings.cron_secret else ""
+    supplied = (authorization or "").removeprefix("Bearer ").strip()
+    # No secret configured means nobody may trigger the run.
+    if not expected or not hmac.compare_digest(supplied.encode(), expected.encode()):
+        raise UnauthorizedError()
+
+
+@router.api_route("/api/v1/internal/backups/run", methods=["GET", "POST"], include_in_schema=False)
+async def run_nightly_backups(
+    settings: SettingsDep,
+    mailer: MailerDep,
+    authorization: Annotated[str | None, Header()] = None,
+) -> dict[str, int | bool]:
+    """Called by Vercel Cron (GET, with ``Authorization: Bearer <CRON_SECRET>``)."""
+    _require_cron_secret(settings, authorization)
+    summary = await delivery.run_nightly(get_session_factory(), mailer=mailer, now=_now())
+    logger.info("backup.run", extra=asdict(summary))
+    return asdict(summary)

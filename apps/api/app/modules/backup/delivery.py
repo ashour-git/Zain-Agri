@@ -10,11 +10,12 @@ import logging
 import time
 import uuid
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.errors import BackupMailNotConfiguredError, ConflictError, TooManyRequestsError
 from app.modules.audit import service as audit
@@ -28,6 +29,7 @@ from app.modules.backup.service import (
 )
 from app.modules.backup.workbook import CAIRO, build_workbook, cairo_date
 from app.modules.identity.models import Tenant
+from app.modules.tenancy.context import set_tenant_context
 
 logger = logging.getLogger("zain.backup")
 
@@ -166,3 +168,65 @@ async def send_now(
     )
     assert row is not None  # manual deliveries are never unique-claimed
     return row
+
+
+RUN_DEADLINE_SECONDS = 240.0  # Vercel Hobby allows 300 s per invocation
+
+
+@dataclass
+class RunSummary:
+    sent: int = 0
+    failed: int = 0
+    skipped: int = 0
+    remaining: int = 0
+    configured: bool = True
+
+
+async def run_nightly(
+    session_factory: async_sessionmaker[AsyncSession],
+    *,
+    mailer: Mailer | None,
+    now: datetime,
+    deadline_seconds: float = RUN_DEADLINE_SECONDS,
+    clock: Callable[[], float] = time.monotonic,
+    sleep: Sleep = asyncio.sleep,
+) -> RunSummary:
+    """Send today's backup to every due shop, one session and tenant context each.
+
+    Stops starting new shops at the deadline; the next run picks them up.
+    """
+    if mailer is None:
+        return RunSummary(configured=False)
+    started = clock()
+    async with session_factory() as db:
+        due = list(
+            (
+                await db.execute(
+                    text("SELECT tenant_id FROM app_backup_due_tenants(CAST(:d AS date))"),
+                    {"d": cairo_date(now)},
+                )
+            ).scalars()
+        )
+
+    summary = RunSummary()
+    for index, tenant_id in enumerate(due):
+        if clock() - started > deadline_seconds:
+            summary.remaining = len(due) - index
+            break
+        async with session_factory() as db:
+            await set_tenant_context(db, tenant_id)
+            row = await deliver(
+                db,
+                tenant_id=tenant_id,
+                kind=DeliveryKind.NIGHTLY,
+                mailer=mailer,
+                now=now,
+                sleep=sleep,
+            )
+        if row is None:
+            summary.skipped += 1
+        elif row.status == DeliveryStatus.SENT:
+            summary.sent += 1
+        else:
+            summary.failed += 1
+    return summary
