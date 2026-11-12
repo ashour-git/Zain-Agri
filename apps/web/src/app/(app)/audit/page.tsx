@@ -41,6 +41,9 @@ const ACTION_LABELS: Record<string, string> = {
   "backup.confirmed": "تأكيد بريد النسخة اليومية",
   "backup.stopped": "إيقاف النسخة اليومية",
   "backup.manual_send": "إرسال نسخة يدوية",
+  "stocktake.started": "بدء جرد",
+  "stocktake.applied": "اعتماد جرد",
+  "stocktake.cancelled": "إلغاء جرد",
 };
 
 const ACTION_VARIANTS: Record<string, "brand" | "warning" | "neutral"> = {

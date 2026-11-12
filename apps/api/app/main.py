@@ -21,6 +21,7 @@ from app.modules.backup.router import router as backup_router
 from app.modules.catalog.router import router as catalog_router
 from app.modules.health.router import router as health_router
 from app.modules.inventory.router import router as inventory_router
+from app.modules.stocktake.router import router as stocktake_router
 from app.modules.tenants.router import router as tenants_router
 
 logger = logging.getLogger(__name__)
@@ -72,6 +73,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(audit_router)
     app.include_router(assistant_router)
     app.include_router(backup_router)
+    app.include_router(stocktake_router)
     return app
 
 

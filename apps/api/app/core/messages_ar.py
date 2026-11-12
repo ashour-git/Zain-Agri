@@ -77,6 +77,14 @@ MESSAGES_AR: dict[str, str] = {
     "Daily manual backup limit reached": "وصلت للحد اليومي: 3 نسخ يدوية. حاول غدًا.",
     "Backup email sending is not configured": "الإرسال غير مُعدّ.",
     "Too many confirmation emails today": "أرسلنا روابط تأكيد كثيرة اليوم. حاول غدًا.",
+    # --- stocktake ---
+    "A stocktake is already open": "يوجد جرد مفتوح بالفعل. أكمله أو ألغه أولًا.",
+    "This stocktake is closed": "هذا الجرد مغلق ولا يمكن تعديله.",
+    "Stocktake not found": "الجرد غير موجود.",
+    "Stocktake line not found": "بند الجرد غير موجود.",
+    "A stocktake correction would make stock negative": "تصحيح الجرد سيجعل رصيد أحد الأصناف سالبًا. راجع الصنف المذكور ثم أعد المحاولة.",
+    "Too many stocktake corrections": "عدد التصحيحات كبير. اجرد قسمًا واحدًا في كل مرة.",
+    "Choose a category for this stocktake": "اختر التصنيف الذي تريد جرده.",
     # --- framework-level ---
     "Request validation failed": "بعض البيانات المُدخلة غير صالحة. راجعها ثم حاول مرة أخرى.",
     "Internal server error": "حدث خطأ غير متوقع. حاول مرة أخرى بعد قليل.",

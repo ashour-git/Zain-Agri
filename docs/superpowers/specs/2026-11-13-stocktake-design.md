@@ -107,8 +107,8 @@ and `reference_id`, and is audited by the existing path.
 | POST | `/api/v1/stocktakes/{id}/apply` | post all corrections |
 | POST | `/api/v1/stocktakes/{id}/cancel` | cancel |
 
-All require `inventory.adjust`, except history and header which need
-`inventory.read`. Errors use the existing envelope with Arabic messages.
+All require `inventory.adjust` (cashiers hold `inventory.read` but must not
+see counts). Errors use the existing envelope with Arabic messages.
 
 ## 7. Screens
 

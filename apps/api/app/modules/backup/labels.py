@@ -37,6 +37,9 @@ AUDIT_ACTION_LABELS_AR: dict[str, str] = {
     "backup.confirmed": "تأكيد بريد النسخة اليومية",
     "backup.stopped": "إيقاف النسخة اليومية",
     "backup.manual_send": "إرسال نسخة يدوية",
+    "stocktake.started": "بدء جرد",
+    "stocktake.applied": "اعتماد جرد",
+    "stocktake.cancelled": "إلغاء جرد",
 }
 
 ENTITY_LABELS_AR: dict[str, str] = {
@@ -47,6 +50,7 @@ ENTITY_LABELS_AR: dict[str, str] = {
     "stock_movement": "حركة مخزون",
     "batch": "دفعة",
     "assistant": "المساعد",
+    "stocktake": "جرد",
     "backup": "النسخة اليومية",
 }
 
