@@ -1,13 +1,13 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
-import { Field, FormError, SubmitButton } from "@/components/ui/field";
+import { Field, FormError, FormNotice, SubmitButton } from "@/components/ui/field";
 import { ApiRequestError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-provider";
 
@@ -17,6 +17,14 @@ const schema = z.object({
 });
 
 type FormValues = z.infer<typeof schema>;
+
+/** Shown after a successful password reset (/login?reset=done). */
+function ResetNotice() {
+  const done = useSearchParams().get("reset") === "done";
+  return (
+    <FormNotice>{done ? "تم تغيير كلمة المرور. سجّل الدخول بالكلمة الجديدة." : null}</FormNotice>
+  );
+}
 
 export default function LoginPage() {
   const { signIn } = useAuth();
@@ -55,6 +63,9 @@ export default function LoginPage() {
 
       <CardContent className="p-0">
         <form onSubmit={onSubmit} className="space-y-4" noValidate>
+          <Suspense fallback={null}>
+            <ResetNotice />
+          </Suspense>
           <FormError>{formError}</FormError>
 
           <Field
@@ -76,6 +87,12 @@ export default function LoginPage() {
             error={errors.password?.message}
             {...register("password")}
           />
+
+          <p className="-mt-2 text-end text-[13px]">
+            <a href="/forgot-password" className="font-medium text-brand-700 hover:underline">
+              نسيت كلمة المرور؟
+            </a>
+          </p>
 
           <SubmitButton type="submit" pending={isSubmitting}>
             {isSubmitting ? "جارٍ الدخول…" : "تسجيل الدخول"}
