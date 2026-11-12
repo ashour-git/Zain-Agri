@@ -1,6 +1,13 @@
 "use client";
 
-import { Boxes, History, LayoutDashboard, Package, Settings } from "lucide-react";
+import {
+  Boxes,
+  DatabaseBackup,
+  History,
+  LayoutDashboard,
+  Package,
+  Settings,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -33,6 +40,12 @@ const sections: { label: string; items: NavItem[] }[] = [
     items: [
       { label: "سجل التعديلات", icon: History, href: "/audit", permission: "audit.read" },
       { label: "الحساب والأمان", icon: Settings, href: "/settings/security" },
+      {
+        label: "النسخة اليومية",
+        icon: DatabaseBackup,
+        href: "/settings/backup",
+        permission: "tenant.settings.manage",
+      },
     ],
   },
 ];

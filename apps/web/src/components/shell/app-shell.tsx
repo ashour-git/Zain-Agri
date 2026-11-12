@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 
+import { BackupFailureBanner } from "@/components/shell/backup-banner";
 import { Header } from "@/components/shell/header";
 import { Sidebar } from "@/components/shell/sidebar";
 import { useAuth } from "@/lib/auth-provider";
@@ -13,6 +14,7 @@ const TITLES: Record<string, string> = {
   "/inventory": "المخزون",
   "/audit": "سجل التعديلات",
   "/settings/security": "الحساب والأمان",
+  "/settings/backup": "النسخة اليومية",
 };
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -43,6 +45,9 @@ export function AppShell({ children }: { children: ReactNode }) {
           onSignOut={() => {
             void signOut().then(() => router.replace("/login"));
           }}
+        />
+        <BackupFailureBanner
+          isOwner={session?.permissions.includes("tenant.settings.manage") ?? false}
         />
         <main id="main" tabIndex={-1} className="flex-1 outline-none">
           {children}

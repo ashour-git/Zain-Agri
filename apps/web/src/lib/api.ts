@@ -142,7 +142,7 @@ export function refreshAccessToken(): Promise<Session | null> {
 }
 
 type RequestOptions = {
-  method?: "GET" | "POST" | "PATCH" | "DELETE";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   body?: unknown;
   /** Skip the Authorization header (login, register, refresh). */
   anonymous?: boolean;
