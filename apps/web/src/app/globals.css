@@ -117,3 +117,40 @@
     font-variant-numeric: tabular-nums;
   }
 }
+
+/*
+ * Printing an invoice: only the sheet. Anything marked data-print-hide (the app
+ * shell, buttons) disappears. A4 uses the normal page; the 80 mm receipt is one
+ * 72 mm column on a page with small margins, and the receipt printer's driver
+ * sets the roll size (CSS cannot say "80 mm wide, as long as needed").
+ */
+@page {
+  margin: 12mm;
+}
+
+@page receipt {
+  margin: 4mm;
+}
+
+@media print {
+  [data-print-hide] {
+    display: none !important;
+  }
+
+  body {
+    background: #ffffff;
+  }
+
+  .invoice-sheet {
+    border: 0 !important;
+    border-radius: 0 !important;
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
+  .receipt-80 {
+    page: receipt;
+    width: 72mm !important;
+    font-size: 11px;
+  }
+}

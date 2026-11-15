@@ -41,6 +41,12 @@ AUDIT_ACTION_LABELS_AR: dict[str, str] = {
     "stocktake.applied": "اعتماد جرد",
     "stocktake.cancelled": "إلغاء جرد",
     "import.committed": "استيراد منتجات",
+    "customer.created": "إضافة عميل",
+    "customer.updated": "تعديل عميل",
+    "customer.payment": "تحصيل من عميل",
+    "customer.correction": "تصحيح حساب عميل",
+    "sale.created": "فاتورة بيع",
+    "sale.returned": "مرتجع بيع",
 }
 
 ENTITY_LABELS_AR: dict[str, str] = {
@@ -53,6 +59,9 @@ ENTITY_LABELS_AR: dict[str, str] = {
     "assistant": "المساعد",
     "stocktake": "جرد",
     "import": "استيراد",
+    "customer": "عميل",
+    "sales_invoice": "فاتورة بيع",
+    "sales_return": "مرتجع بيع",
     "backup": "النسخة اليومية",
 }
 

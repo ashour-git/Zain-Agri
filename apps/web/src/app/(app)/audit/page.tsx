@@ -45,6 +45,12 @@ const ACTION_LABELS: Record<string, string> = {
   "stocktake.applied": "اعتماد جرد",
   "stocktake.cancelled": "إلغاء جرد",
   "import.committed": "استيراد منتجات",
+  "customer.created": "إضافة عميل",
+  "customer.updated": "تعديل عميل",
+  "customer.payment": "تحصيل من عميل",
+  "customer.correction": "تصحيح حساب عميل",
+  "sale.created": "فاتورة بيع",
+  "sale.returned": "مرتجع بيع",
 };
 
 const ACTION_VARIANTS: Record<string, "brand" | "warning" | "neutral"> = {

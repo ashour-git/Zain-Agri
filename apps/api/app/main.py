@@ -19,9 +19,12 @@ from app.modules.audit.router import router as audit_router
 from app.modules.auth.router import router as auth_router
 from app.modules.backup.router import router as backup_router
 from app.modules.catalog.router import router as catalog_router
+from app.modules.customers.router import router as customers_router
 from app.modules.health.router import router as health_router
 from app.modules.importer.router import router as importer_router
 from app.modules.inventory.router import router as inventory_router
+from app.modules.sales.public_router import router as public_sales_router
+from app.modules.sales.router import router as sales_router
 from app.modules.stocktake.router import router as stocktake_router
 from app.modules.tenants.router import router as tenants_router
 
@@ -76,6 +79,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(backup_router)
     app.include_router(stocktake_router)
     app.include_router(importer_router)
+    app.include_router(customers_router)
+    app.include_router(sales_router)
+    app.include_router(public_sales_router)
     return app
 
 
