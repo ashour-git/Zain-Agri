@@ -12,6 +12,7 @@ const TITLES: Record<string, string> = {
   "/": "نظرة عامة",
   "/sales": "البيع",
   "/sales/history": "الفواتير",
+  "/customers": "العملاء",
   "/products": "المنتجات",
   "/inventory": "المخزون",
   "/audit": "سجل التعديلات",
@@ -28,6 +29,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     ? "الجرد"
     : /^\/sales\/[0-9a-f-]{36}$/.test(pathname)
       ? "فاتورة بيع"
+      : pathname.startsWith("/customers/")
+        ? "كشف حساب عميل"
     : pathname === "/products/import"
       ? "استيراد المنتجات"
       : (TITLES[pathname] ?? "ZAIN AGRI");

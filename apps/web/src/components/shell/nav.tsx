@@ -9,6 +9,7 @@ import {
   ReceiptText,
   Settings,
   ShoppingCart,
+  Users,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -34,6 +35,7 @@ const sections: { label: string; items: NavItem[] }[] = [
     items: [
       { label: "البيع", icon: ShoppingCart, href: "/sales", permission: "sales.operate" },
       { label: "الفواتير", icon: ReceiptText, href: "/sales/history", permission: "sales.operate" },
+      { label: "العملاء", icon: Users, href: "/customers", permission: "sales.operate" },
       { label: "نظرة عامة", icon: LayoutDashboard, href: "/" },
       { label: "المخزون", icon: Boxes, href: "/inventory", permission: "inventory.read" },
       { label: "المنتجات", icon: Package, href: "/products", permission: "products.read" },
