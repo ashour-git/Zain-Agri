@@ -106,6 +106,7 @@ MESSAGES_AR: dict[str, str] = {
     "Enter an Egyptian mobile number": "اكتب رقم موبايل مصري صحيح، مثل 01012345678.",
     "Your role cannot change customer balances": "دورك في المتجر لا يسمح بتعديل حسابات العملاء.",
     "Invoice not found": "الفاتورة غير موجودة.",
+    "This invoice link is not valid": "رابط الفاتورة غير صالح أو تم إيقافه. اطلب رابطًا جديدًا من المحل.",
     "This line is not on this invoice": "هذا الصنف ليس في هذه الفاتورة.",
     "You cannot return more than was sold": "لا يمكن إرجاع كمية أكبر من المباعة بعد خصم ما رجع من قبل.",
     "Each line can appear once in a return": "كل صنف يُكتب مرة واحدة في المرتجع.",

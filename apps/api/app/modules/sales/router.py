@@ -6,17 +6,27 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import Settings, get_settings
 from app.infrastructure.db.session import get_session
 from app.modules.auth.dependencies import CurrentPrincipal, TenantContext, require_permission
 from app.modules.authorization.permissions import Permission
-from app.modules.sales import returns, service
-from app.modules.sales.schemas import ReturnIn, ReturnOut, SaleIn, SaleListOut, SaleOut
+from app.modules.sales import returns, service, sharing
+from app.modules.sales.schemas import (
+    ReturnIn,
+    ReturnOut,
+    SaleIn,
+    SaleListOut,
+    SaleOut,
+    ShareOut,
+)
 
 router = APIRouter(prefix="/api/v1/sales", tags=["sales"])
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 Seller = Annotated[TenantContext, Depends(require_permission(Permission.SALES_OPERATE))]
 Refunder = Annotated[TenantContext, Depends(require_permission(Permission.SALES_REFUND))]
+Supervisor = Annotated[TenantContext, Depends(require_permission(Permission.SALES_DISCOUNT))]
+SettingsDep = Annotated[Settings, Depends(get_settings)]
 
 
 @router.post("", response_model=SaleOut, status_code=status.HTTP_201_CREATED)
@@ -71,3 +81,22 @@ async def create_return(
     db: SessionDep,
 ) -> ReturnOut:
     return await returns.create_return(db, context, principal.user_id, invoice_id, payload)
+
+
+@router.post("/{invoice_id}/share", response_model=ShareOut)
+async def share_invoice(
+    invoice_id: uuid.UUID,
+    context: Seller,
+    principal: CurrentPrincipal,
+    settings: SettingsDep,
+    db: SessionDep,
+) -> ShareOut:
+    return await sharing.share(db, context, principal.user_id, invoice_id, settings)
+
+
+@router.delete("/{invoice_id}/share", status_code=status.HTTP_204_NO_CONTENT)
+async def revoke_invoice_link(
+    invoice_id: uuid.UUID, context: Supervisor, db: SessionDep
+) -> Response:
+    await sharing.revoke(db, context, invoice_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

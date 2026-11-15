@@ -110,3 +110,30 @@ class ReturnOut(BaseModel):
     total: Decimal
     credit_reduction: Decimal
     cash_refund: Decimal
+
+
+class ShareOut(BaseModel):
+    url: str
+
+
+class PublicLineOut(BaseModel):
+    name_ar: str
+    unit_name_ar: str
+    quantity: Decimal
+    unit_price: Decimal
+    line_total: Decimal
+
+
+class PublicInvoiceOut(BaseModel):
+    """What a customer sees from a link: no phone, no account balance."""
+
+    shop_name: str
+    number: int
+    created_at: datetime
+    lines: list[PublicLineOut]
+    subtotal: Decimal
+    discount: Decimal
+    total: Decimal
+    paid: Decimal
+    remaining: Decimal
+    returned_total: Decimal
