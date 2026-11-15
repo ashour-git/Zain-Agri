@@ -55,6 +55,8 @@ def test_role_matrix_matches_the_documented_policy() -> None:
         {
             Permission.SALES_OPERATE,
             Permission.SALES_REFUND,
+            Permission.SALES_DISCOUNT,
+            Permission.CUSTOMERS_ADJUST,
             Permission.PURCHASES_MANAGE,
             Permission.REPORTS_VIEW,
             Permission.INVENTORY_READ,
@@ -138,6 +140,8 @@ async def test_permissions_endpoint_reflects_the_role(
         MembershipRole.MANAGER: {
             "sales.operate",
             "sales.refund",
+            "sales.discount",
+            "customers.adjust",
             "purchases.manage",
             "reports.view",
             "inventory.read",

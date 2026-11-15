@@ -24,6 +24,9 @@ BEGIN
         IF to_regclass('public.audit_logs') IS NOT NULL THEN
             EXECUTE 'REVOKE UPDATE, DELETE, TRUNCATE ON audit_logs FROM zain_app';
         END IF;
+        IF to_regclass('public.customer_ledger') IS NOT NULL THEN
+            EXECUTE 'REVOKE UPDATE, DELETE, TRUNCATE ON customer_ledger FROM zain_app';
+        END IF;
 
         -- Units of measure are platform reference data seeded by migration.
         -- They are global (no tenant_id), so the runtime role gets read-only
@@ -44,6 +47,11 @@ BEGIN
         IF to_regprocedure('app_backup_due_tenants(date)') IS NOT NULL THEN
             EXECUTE 'REVOKE ALL ON FUNCTION app_backup_due_tenants(date) FROM PUBLIC';
             EXECUTE 'GRANT EXECUTE ON FUNCTION app_backup_due_tenants(date) TO zain_app';
+        END IF;
+        -- Sales (migration 0010): the invoice named by a public share link.
+        IF to_regprocedure('app_invoice_by_share_token(text)') IS NOT NULL THEN
+            EXECUTE 'REVOKE ALL ON FUNCTION app_invoice_by_share_token(text) FROM PUBLIC';
+            EXECUTE 'GRANT EXECUTE ON FUNCTION app_invoice_by_share_token(text) TO zain_app';
         END IF;
         IF to_regprocedure('app_backup_token_tenant(text)') IS NOT NULL THEN
             EXECUTE 'REVOKE ALL ON FUNCTION app_backup_token_tenant(text) FROM PUBLIC';

@@ -83,6 +83,8 @@ export const PERMISSION_LABELS: Record<string, string> = {
   "purchases.manage": "إدارة المشتريات",
   "sales.operate": "تشغيل المبيعات",
   "sales.refund": "تنفيذ المرتجعات",
+  "sales.discount": "تعديل الأسعار والخصم",
+  "customers.adjust": "تعديل حسابات العملاء",
   "reports.view": "عرض التقارير",
 };
 

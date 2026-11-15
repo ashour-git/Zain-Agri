@@ -15,8 +15,10 @@ from app.modules.audit import models as _audit_models  # noqa: F401  (registers 
 from app.modules.auth import models as _auth_models  # noqa: F401  (registers metadata)
 from app.modules.backup import models as _backup_models  # noqa: F401  (registers metadata)
 from app.modules.catalog import models as _catalog_models  # noqa: F401  (registers metadata)
+from app.modules.customers import models as _customers_models  # noqa: F401  (registers metadata)
 from app.modules.identity import models as _models  # noqa: F401  (registers metadata)
 from app.modules.inventory import models as _inventory_models  # noqa: F401  (registers metadata)
+from app.modules.sales import models as _sales_models  # noqa: F401  (registers metadata)
 from app.modules.stocktake import models as _stocktake_models  # noqa: F401  (registers metadata)
 
 config = context.config

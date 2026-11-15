@@ -26,10 +26,13 @@ class Permission(enum.StrEnum):
     INVENTORY_VIEW_COST = "inventory.view_cost"
     BATCHES_MANAGE = "batches.manage"
     AUDIT_READ = "audit.read"
-    # Reserved for the modules that follow Sprint 03.
-    PURCHASES_MANAGE = "purchases.manage"
+    # Sales and credit customers
     SALES_OPERATE = "sales.operate"
     SALES_REFUND = "sales.refund"
+    SALES_DISCOUNT = "sales.discount"
+    CUSTOMERS_ADJUST = "customers.adjust"
+    # Reserved for the modules that follow.
+    PURCHASES_MANAGE = "purchases.manage"
     REPORTS_VIEW = "reports.view"
 
 
@@ -51,6 +54,8 @@ ROLE_PERMISSIONS: dict[MembershipRole, frozenset[Permission]] = {
         {
             Permission.SALES_OPERATE,
             Permission.SALES_REFUND,
+            Permission.SALES_DISCOUNT,
+            Permission.CUSTOMERS_ADJUST,
             Permission.PURCHASES_MANAGE,
             Permission.REPORTS_VIEW,
             Permission.INVENTORY_READ,
