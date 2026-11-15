@@ -167,24 +167,71 @@ export function savePrintSize(size: PrintSize): void {
 }
 
 /*
- * Sharing again issues a new token and kills the old link, so the link made on
- * this device is kept and reused: a resend never breaks what the customer has.
+ * Exact money for the counter screen. Floats round 0.5 x 4.35 to 2.17 while the
+ * server's Decimal half-up gives 2.18, so amounts are fractions of BigInts and
+ * rounded once to whole piastres (cents), exactly like the server.
  */
-const LINK_KEY = (id: string) => `zain.invoiceLink.${id}`;
+type Fraction = { num: bigint; den: bigint };
 
-export function rememberedLink(id: string): string | null {
-  try {
-    return window.localStorage.getItem(LINK_KEY(id));
-  } catch {
-    return null;
-  }
+/** Arabic-Indic digits, the Arabic decimal mark and thousands separators → "1250.5". */
+export function normalizeNumber(input: string): string {
+  return input
+    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0))
+    .replace(/[٫]/g, ".")
+    .replace(/[,٬\s]/g, "");
 }
 
-export function rememberLink(id: string, url: string | null): void {
-  try {
-    if (url) window.localStorage.setItem(LINK_KEY(id), url);
-    else window.localStorage.removeItem(LINK_KEY(id));
-  } catch {
-    // Not remembered: the next send makes a fresh link.
+/** "12.345" → 12345/1000; null when it is not a plain non-negative number. */
+export function parseDecimal(input: string): Fraction | null {
+  const text = normalizeNumber(input);
+  const match = /^(\d*)(?:\.(\d*))?$/.exec(text);
+  const whole = match?.[1] ?? "";
+  const fraction = match?.[2] ?? "";
+  if (!match || whole + fraction === "") return null;
+  return { num: BigInt(`${whole}${fraction}` || "0"), den: BigInt(10) ** BigInt(fraction.length) };
+}
+
+/** Product of fractions, rounded half-up to whole cents. */
+export function centsOf(...parts: Fraction[]): bigint {
+  let num = BigInt(100);
+  let den = BigInt(1);
+  for (const part of parts) {
+    num *= part.num;
+    den *= part.den;
   }
+  return (num * BigInt(2) + den) / (den * BigInt(2));
+}
+
+/** Cents of a typed amount; null when it does not parse. Empty means 0. */
+export function centsOfInput(input: string): bigint | null {
+  if (input.trim() === "") return BigInt(0);
+  const value = parseDecimal(input);
+  return value ? centsOf(value) : null;
+}
+
+/** 123456n → "1234.56" */
+export function centsToString(cents: bigint): string {
+  const negative = cents < BigInt(0);
+  const absolute = negative ? -cents : cents;
+  const text = `${absolute / BigInt(100)}.${String(absolute % BigInt(100)).padStart(2, "0")}`;
+  return negative ? `-${text}` : text;
+}
+
+/** How many base units one `unitId` holds, as an exact fraction (null if unknown). */
+export function exactFactor(
+  unitId: string,
+  baseUnitId: string,
+  conversions: { from_unit_id: string; to_unit_id: string; factor: string }[],
+): Fraction | null {
+  if (unitId === baseUnitId) return { num: BigInt(1), den: BigInt(1) };
+  for (const conversion of conversions) {
+    const factor = parseDecimal(conversion.factor);
+    if (!factor || factor.num === BigInt(0)) continue;
+    if (conversion.from_unit_id === unitId && conversion.to_unit_id === baseUnitId) return factor;
+    if (conversion.from_unit_id === baseUnitId && conversion.to_unit_id === unitId) {
+      return { num: factor.den, den: factor.num };
+    }
+  }
+  return null;
 }

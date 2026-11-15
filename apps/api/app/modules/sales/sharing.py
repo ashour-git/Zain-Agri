@@ -1,13 +1,16 @@
 """Shareable invoice links for WhatsApp: a secret URL anyone can open.
 
-Only the sha256 of the token is stored, so a link cannot be shown again:
-sharing again issues a new token and the old link stops working. The public
-read finds the shop through a narrow SECURITY DEFINER lookup, then reads the
-invoice under that shop's RLS context, and never returns a phone or balance.
+The token is an HMAC of the invoice id and its share version under the app
+secret, so sharing again (from any device) returns the same link; revoking
+bumps the version, which kills the link and makes the next one different.
+Only the sha256 of the token is stored. The public read finds the shop
+through a narrow SECURITY DEFINER lookup, then reads the invoice under that
+shop's RLS context, and never returns a phone or balance.
 """
 
+import base64
 import hashlib
-import secrets
+import hmac
 import uuid
 
 from sqlalchemy import select, text
@@ -31,6 +34,13 @@ def _hash(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
+def _token(settings: Settings, invoice: SalesInvoice) -> str:
+    message = f"invoice-link:{invoice.id}:{invoice.share_version}".encode()
+    key = settings.jwt_secret_key.get_secret_value().encode()
+    digest = hmac.new(key, message, hashlib.sha256).digest()
+    return base64.urlsafe_b64encode(digest).decode().rstrip("=")
+
+
 async def _invoice(db: AsyncSession, tenant_id: uuid.UUID, invoice_id: uuid.UUID) -> SalesInvoice:
     invoice = await db.scalar(
         select(SalesInvoice).where(
@@ -52,15 +62,17 @@ async def share(
     # Same visibility as reading it: a cashier shares only their own invoices.
     await service.get_visible_sale(db, context, actor_id, invoice_id)
     invoice = await _invoice(db, context.tenant.id, invoice_id)
-    token = secrets.token_urlsafe(32)
-    invoice.share_token_hash = _hash(token)
-    await db.commit()
+    token = _token(settings, invoice)
+    if invoice.share_token_hash != _hash(token):
+        invoice.share_token_hash = _hash(token)
+        await db.commit()
     return ShareOut(url=f"{settings.public_app_url.rstrip('/')}/i/{token}")
 
 
 async def revoke(db: AsyncSession, context: TenantContext, invoice_id: uuid.UUID) -> None:
     invoice = await _invoice(db, context.tenant.id, invoice_id)
     invoice.share_token_hash = None
+    invoice.share_version += 1
     await db.commit()
 
 

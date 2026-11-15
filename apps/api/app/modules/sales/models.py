@@ -80,6 +80,11 @@ class SalesInvoice(UUIDPrimaryKeyMixin, Base):
     idempotency_key: Mapped[str] = mapped_column(String(80), nullable=False)
     request_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     share_token_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Bumped on revoke: the link is derived from (invoice, version), so sharing
+    # again returns the same link until it is revoked.
+    share_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
     created_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )

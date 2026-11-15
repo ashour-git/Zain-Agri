@@ -20,8 +20,6 @@ import {
   getSale,
   invoiceMessage,
   readPrintSize,
-  rememberLink,
-  rememberedLink,
   revokeShare,
   savePrintSize,
   shareSale,
@@ -62,7 +60,6 @@ export default function InvoicePage() {
       .then((result) => {
         setFailed(null);
         setSale(result);
-        if (!result.shared) rememberLink(result.id, null);
       })
       .catch((caught: unknown) =>
         setFailed(caught instanceof ApiRequestError ? caught.message : "تعذّر تحميل الفاتورة."),
@@ -94,12 +91,9 @@ export default function InvoicePage() {
     const tab = window.open("about:blank", "_blank");
     setBusy(true);
     try {
-      let link = sale.shared ? rememberedLink(sale.id) : null;
-      if (!link) {
-        link = (await shareSale(sale.id)).url;
-        rememberLink(sale.id, link);
-        setSale({ ...sale, shared: true });
-      }
+      // The server returns the same link every time until it is revoked.
+      const link = (await shareSale(sale.id)).url;
+      if (!sale.shared) setSale({ ...sale, shared: true });
       const url = whatsappUrl(sale.customer?.phone ?? null, invoiceMessage(shopName, sale, link));
       if (tab) {
         tab.opener = null;
@@ -120,7 +114,6 @@ export default function InvoicePage() {
     setBusy(true);
     try {
       await revokeShare(sale.id);
-      rememberLink(sale.id, null);
       setSale({ ...sale, shared: false });
       setNotice("أُوقف رابط الفاتورة. من معه الرابط القديم لن يفتح الفاتورة.");
     } catch (caught) {

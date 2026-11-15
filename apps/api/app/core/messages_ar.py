@@ -110,6 +110,8 @@ MESSAGES_AR: dict[str, str] = {
     "This line is not on this invoice": "هذا الصنف ليس في هذه الفاتورة.",
     "You cannot return more than was sold": "لا يمكن إرجاع كمية أكبر من المباعة بعد خصم ما رجع من قبل.",
     "Each line can appear once in a return": "كل صنف يُكتب مرة واحدة في المرتجع.",
+    "This product started tracking batches after the sale": "تتبع الدفعات فُعّل لهذا الصنف بعد البيع، فلا توجد دفعة يرجع إليها. سجّل رجوعه من المخزون كتسوية بالزيادة مع اختيار الدفعة.",
+    "The sale's batch records do not cover this return": "سجلات الدفعات في هذه الفاتورة لا تغطي كمية المرتجع. راجع المالك.",
     "This customer is inactive": "هذا العميل موقوف. فعّله أولًا أو اختر عميلًا آخر.",
     "This product has no sale price": "لا يوجد سعر بيع لهذا الصنف. اطلب من المالك تحديده.",
     "Your role cannot change prices or give discounts": "دورك في المتجر لا يسمح بتغيير السعر أو إعطاء خصم.",

@@ -131,6 +131,7 @@ def upgrade() -> None:
         sa.Column("idempotency_key", sa.String(length=80), nullable=False),
         sa.Column("request_hash", sa.String(length=64), nullable=False),
         sa.Column("share_token_hash", sa.String(length=64), nullable=True),
+        sa.Column("share_version", sa.Integer(), server_default="0", nullable=False),
         sa.Column("created_by", sa.Uuid(), nullable=True),
         sa.Column(
             "created_at",

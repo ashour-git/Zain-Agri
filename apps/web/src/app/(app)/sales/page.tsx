@@ -17,7 +17,16 @@ import { useAuth } from "@/lib/auth-provider";
 import { formatMoney, toNumber, unitFactor } from "@/lib/catalog";
 import type { Customer } from "@/lib/customers";
 import { getUnits } from "@/lib/reference";
-import { createSale, newSaleKey, roundMoney } from "@/lib/sales";
+import {
+  centsOf,
+  centsOfInput,
+  centsToString,
+  createSale,
+  exactFactor,
+  newSaleKey,
+  normalizeNumber,
+  parseDecimal,
+} from "@/lib/sales";
 import type { Product, ProductDetail, UnitOfMeasure } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -42,11 +51,11 @@ const loadDetail = (id: string) => {
   return hit;
 };
 
-/** The listed price in a unit: base sale price × how many base units it holds. */
+/** The listed price in a unit (for display): base sale price × base units it holds. */
 function listedPrice(product: ProductDetail, unitId: string): string {
-  if (!product.sale_price) return "";
-  const factor = unitFactor(unitId, product.base_unit_id, product.conversions);
-  return factor > 0 ? roundMoney(toNumber(product.sale_price) * factor).toFixed(2) : "";
+  const sale = product.sale_price ? parseDecimal(product.sale_price) : null;
+  const factor = exactFactor(unitId, product.base_unit_id, product.conversions);
+  return sale && factor ? centsToString(centsOf(sale, factor)) : "";
 }
 
 function unitOptions(product: ProductDetail): string[] {
@@ -59,7 +68,24 @@ function unitOptions(product: ProductDetail): string[] {
   return [...ids];
 }
 
-const lineTotal = (line: CounterLine) => roundMoney(toNumber(line.quantity) * toNumber(line.price));
+/**
+ * Cents of a line, exactly as the server computes it: a listed price is never
+ * rounded before multiplying (500 g of 25.00/kg is 12.50); a typed price is.
+ * null when the quantity or price does not parse.
+ */
+function lineCents(line: CounterLine): bigint | null {
+  const quantity = parseDecimal(line.quantity);
+  if (!quantity) return null;
+  const sale = line.product.sale_price ? parseDecimal(line.product.sale_price) : null;
+  const factor = exactFactor(line.unitId, line.product.base_unit_id, line.product.conversions);
+  if (!line.priceEdited && sale && factor) return centsOf(quantity, factor, sale);
+  const price = parseDecimal(line.price);
+  return price ? centsOf(quantity, price) : null;
+}
+
+const money = (cents: bigint) => formatMoney(centsToString(cents));
+const bump = (quantity: string, by: number) =>
+  String(Math.max(toNumber(normalizeNumber(quantity)) + by, 0));
 
 export default function CounterPage() {
   const { session } = useAuth();
@@ -83,13 +109,17 @@ export default function CounterPage() {
       .catch(() => undefined);
   }, []);
 
-  const subtotal = useMemo(() => roundMoney(lines.reduce((sum, line) => sum + lineTotal(line), 0)), [lines]);
-  const discountValue = canDiscount ? roundMoney(toNumber(discount)) : 0;
-  const total = roundMoney(Math.max(subtotal - discountValue, 0));
-  const paidValue = customer && paid.trim() !== "" ? roundMoney(toNumber(paid)) : total;
-  const credit = roundMoney(total - paidValue);
+  const zero = BigInt(0);
+  const totals = useMemo(() => lines.map(lineCents), [lines]);
+  const subtotal = totals.reduce<bigint>((sum, cents) => sum + (cents ?? zero), zero);
+  const discountCents = canDiscount ? centsOfInput(discount) : zero;
+  const total = discountCents !== null && discountCents < subtotal ? subtotal - discountCents : zero;
+  const paidTyped = customer !== null && paid.trim() !== "";
+  const paidCents = paidTyped ? centsOfInput(paid) : total;
+  const credit = paidCents !== null ? total - paidCents : zero;
 
   const missingPrice = lines.find((line) => line.price.trim() === "");
+  const badLine = lines.find((line, index) => totals[index] === null || !(toNumber(normalizeNumber(line.quantity)) > 0));
   const problem =
     lines.length === 0
       ? null
@@ -97,15 +127,17 @@ export default function CounterPage() {
         ? canDiscount
           ? `اكتب سعر «${missingPrice.product.name_ar}».`
           : `لا يوجد سعر بيع لـ«${missingPrice.product.name_ar}». اطلب من المالك تحديده.`
-        : lines.some((line) => toNumber(line.quantity) <= 0)
-          ? "كل صنف يحتاج كمية أكبر من صفر."
-          : discountValue > subtotal
-            ? "الخصم أكبر من قيمة الفاتورة."
-            : paidValue > total
-              ? "المدفوع أكبر من الإجمالي. سجّل الزيادة كتحصيل من صفحة العميل."
-              : paidValue < 0
-                ? "المدفوع لا يكون بالسالب."
-                : null;
+        : badLine
+          ? `راجع الكمية والسعر لـ«${badLine.product.name_ar}»: اكتب رقمًا أكبر من صفر.`
+          : discountCents === null
+            ? "اكتب الخصم رقمًا، مثل 50."
+            : discountCents > subtotal
+              ? "الخصم أكبر من قيمة الفاتورة."
+              : paidCents === null
+                ? "اكتب المدفوع رقمًا، مثل 500."
+                : paidCents > total
+                  ? "المدفوع أكبر من الإجمالي. سجّل الزيادة كتحصيل من صفحة العميل."
+                  : null;
 
   const addProduct = async (product: Product) => {
     setError(null);
@@ -116,9 +148,7 @@ export default function CounterPage() {
       setLines((current) => {
         const same = current.find((line) => line.product.id === detail.id && line.unitId === unitId);
         if (same) {
-          return current.map((line) =>
-            line === same ? { ...line, quantity: String(toNumber(line.quantity) + 1) } : line,
-          );
+          return current.map((line) => (line === same ? { ...line, quantity: bump(line.quantity, 1) } : line));
         }
         return [
           ...current,
@@ -142,7 +172,11 @@ export default function CounterPage() {
       current.map((line) => {
         if (line.key !== key) return line;
         const next = { ...line, ...change };
-        if (change.unitId && !next.priceEdited) next.price = listedPrice(next.product, change.unitId);
+        if (change.unitId && change.unitId !== line.unitId) {
+          // A new unit gets its own listed price; a price typed for the old unit no longer fits.
+          next.price = listedPrice(next.product, change.unitId);
+          next.priceEdited = false;
+        }
         return next;
       }),
     );
@@ -154,14 +188,15 @@ export default function CounterPage() {
     try {
       const sale = await createSale({
         customer_id: customer?.id ?? null,
-        discount: discountValue.toFixed(2),
-        paid: customer ? paidValue.toFixed(2) : undefined,
+        discount: centsToString(discountCents ?? zero),
+        // Left blank means "paid in full": the server uses its own total.
+        paid: paidTyped && paidCents !== null ? centsToString(paidCents) : undefined,
         idempotency_key: saleKey,
         lines: lines.map((line) => ({
           product_id: line.product.id,
-          quantity: line.quantity,
+          quantity: normalizeNumber(line.quantity),
           unit_id: line.unitId === line.product.base_unit_id ? undefined : line.unitId,
-          unit_price: line.priceEdited || !line.product.sale_price ? line.price : undefined,
+          unit_price: line.priceEdited || !line.product.sale_price ? normalizeNumber(line.price) : undefined,
         })),
       });
       setSaleKey(newSaleKey());
@@ -212,7 +247,10 @@ export default function CounterPage() {
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-ink">{line.product.name_ar}</p>
                       <p className="text-xs text-ink-muted">
-                        الإجمالي <span className="font-medium tabular-nums text-ink">{formatMoney(lineTotal(line).toFixed(2))}</span>
+                        الإجمالي{" "}
+                        <span className="font-medium tabular-nums text-ink">
+                          {totals[lines.indexOf(line)] === null ? "—" : money(totals[lines.indexOf(line)] ?? zero)}
+                        </span>
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
@@ -220,7 +258,7 @@ export default function CounterPage() {
                         <button
                           type="button"
                           aria-label={`إنقاص كمية ${line.product.name_ar}`}
-                          onClick={() => update(line.key, { quantity: String(Math.max(toNumber(line.quantity) - 1, 0)) })}
+                          onClick={() => update(line.key, { quantity: bump(line.quantity, -1) })}
                           className="grid size-10 place-items-center text-ink-muted hover:text-ink"
                         >
                           <Minus className="size-4" aria-hidden="true" />
@@ -229,13 +267,13 @@ export default function CounterPage() {
                           inputMode="decimal"
                           aria-label={`كمية ${line.product.name_ar}`}
                           value={line.quantity}
-                          onChange={(event) => update(line.key, { quantity: event.target.value })}
+                          onChange={(event) => update(line.key, { quantity: normalizeNumber(event.target.value) })}
                           className="h-10 w-16 border-x border-line text-center text-sm tabular-nums outline-none focus:bg-brand-50"
                         />
                         <button
                           type="button"
                           aria-label={`زيادة كمية ${line.product.name_ar}`}
-                          onClick={() => update(line.key, { quantity: String(toNumber(line.quantity) + 1) })}
+                          onClick={() => update(line.key, { quantity: bump(line.quantity, 1) })}
                           className="grid size-10 place-items-center text-ink-muted hover:text-ink"
                         >
                           <Plus className="size-4" aria-hidden="true" />
@@ -264,7 +302,9 @@ export default function CounterPage() {
                           readOnly={!canDiscount}
                           value={line.price}
                           placeholder={canDiscount ? "السعر" : "بلا سعر"}
-                          onChange={(event) => update(line.key, { price: event.target.value, priceEdited: true })}
+                          onChange={(event) =>
+                            update(line.key, { price: normalizeNumber(event.target.value), priceEdited: true })
+                          }
                           className={cn(controlClass, "w-24 tabular-nums", !canDiscount && "bg-surface text-ink-muted")}
                         />
                         ج.م
@@ -307,7 +347,7 @@ export default function CounterPage() {
             <dl className="space-y-1.5 text-sm">
               <div className="flex justify-between">
                 <dt className="text-ink-muted">المجموع</dt>
-                <dd className="tabular-nums">{formatMoney(subtotal.toFixed(2))}</dd>
+                <dd className="tabular-nums">{money(subtotal)}</dd>
               </div>
             </dl>
             {canDiscount ? (
@@ -321,7 +361,7 @@ export default function CounterPage() {
                   id="sale-discount"
                   inputMode="decimal"
                   value={discount}
-                  onChange={(event) => setDiscount(event.target.value)}
+                  onChange={(event) => setDiscount(normalizeNumber(event.target.value))}
                   placeholder="0"
                   className={cn(controlClass, "tabular-nums")}
                 />
@@ -329,7 +369,7 @@ export default function CounterPage() {
             ) : null}
             <div className="flex items-baseline justify-between border-t border-line pt-3">
               <span className="text-sm font-semibold text-ink">الإجمالي</span>
-              <span className="text-xl font-bold tabular-nums text-brand-800">{formatMoney(total.toFixed(2))}</span>
+              <span className="text-xl font-bold tabular-nums text-brand-800">{money(total)}</span>
             </div>
             {customer ? (
               <div className="space-y-1.5">
@@ -342,13 +382,13 @@ export default function CounterPage() {
                   id="sale-paid"
                   inputMode="decimal"
                   value={paid}
-                  onChange={(event) => setPaid(event.target.value)}
-                  placeholder={total.toFixed(2)}
+                  onChange={(event) => setPaid(normalizeNumber(event.target.value))}
+                  placeholder={centsToString(total)}
                   className={cn(controlClass, "tabular-nums")}
                 />
-                {credit > 0 ? (
+                {credit > zero ? (
                   <p className="text-sm text-red-700">
-                    يُسجَّل عليه آجل: <span className="font-semibold tabular-nums">{formatMoney(credit.toFixed(2))}</span>
+                    يُسجَّل عليه آجل: <span className="font-semibold tabular-nums">{money(credit)}</span>
                   </p>
                 ) : null}
               </div>

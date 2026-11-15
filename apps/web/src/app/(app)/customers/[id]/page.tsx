@@ -15,6 +15,7 @@ import { ApiRequestError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-provider";
 import { formatDateTime, formatMoney, toNumber } from "@/lib/catalog";
 import { KIND_LABELS, type Statement, getStatement, recordCorrection, recordPayment } from "@/lib/customers";
+import { normalizeNumber } from "@/lib/sales";
 import { cn } from "@/lib/utils";
 
 type Dialog = "payment" | "correction" | null;
@@ -79,7 +80,7 @@ function MoneyDialog({
           autoFocus
           inputMode="decimal"
           value={amount}
-          onChange={(event) => setAmount(event.target.value)}
+          onChange={(event) => setAmount(event.target.value.replace(/^[−-]/, "-").replace(/^(-?)(.*)$/, (_, sign: string, rest: string) => sign + normalizeNumber(rest)))}
           placeholder={payment ? "500" : "-100"}
         />
         <TextareaField

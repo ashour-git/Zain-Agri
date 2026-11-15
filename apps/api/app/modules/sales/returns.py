@@ -13,7 +13,7 @@ from decimal import Decimal
 from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import NotFoundError, UnprocessableError
+from app.core.errors import ConflictError, NotFoundError, UnprocessableError
 from app.core.money import money
 from app.modules.audit import service as audit
 from app.modules.auth.dependencies import TenantContext
@@ -37,6 +37,8 @@ NOT_FOUND = "Invoice not found"
 LINE_NOT_ON_INVOICE = "This line is not on this invoice"
 TOO_MANY = "You cannot return more than was sold"
 REPEATED_LINE = "Each line can appear once in a return"
+BATCHES_SWITCHED_ON = "This product started tracking batches after the sale"
+NOT_ENOUGH_DRAWN = "The sale's batch records do not cover this return"
 
 _ZERO = Decimal("0")
 
@@ -126,12 +128,28 @@ async def _put_back(
     )
     if product is None:  # the line's foreign key makes this impossible
         raise NotFoundError("Product not found")
+    # How the line was sold decides where the stock goes back, not the
+    # product's current settings: batch draws go back to those batches.
+    drew_batches = bool(
+        await db.scalar(
+            select(func.count(SalesInvoiceLineBatch.id)).where(
+                SalesInvoiceLineBatch.tenant_id == tenant_id,
+                SalesInvoiceLineBatch.line_id == row.id,
+            )
+        )
+    )
     moves: list[tuple[Decimal, uuid.UUID, uuid.UUID | None]]
-    if product.tracks_batches:
+    if drew_batches:
         plan = await _refill_plan(db, tenant_id, row.id, done_base, base_quantity)
+        if _q4(sum((take for _, take in plan), _ZERO)) != base_quantity:
+            raise ConflictError(NOT_ENOUGH_DRAWN, details={"product_name": row.name_ar})
         moves = [
             (batch_quantity, product.base_unit_id, batch_id) for batch_id, batch_quantity in plan
         ]
+    elif product.tracks_batches:
+        # Sold before batch tracking was switched on: there is no batch to
+        # put it back into. Refuse instead of refunding without the stock.
+        raise UnprocessableError(BATCHES_SWITCHED_ON, details={"product_name": row.name_ar})
     else:
         moves = [(quantity, row.unit_id, None)]
     for move_quantity, unit_id, batch_id in moves:
@@ -148,6 +166,29 @@ async def _put_back(
             reference_type="sales_return",
             reference_id=return_id,
         )
+
+
+async def _finishes_invoice(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    invoice_id: uuid.UUID,
+    planned: Sequence[tuple[SalesInvoiceLine, Decimal, Decimal, Decimal, Decimal]],
+) -> bool:
+    """True when, after this return, every line of the invoice is fully returned."""
+    all_lines = (
+        await db.execute(
+            select(SalesInvoiceLine.id, SalesInvoiceLine.quantity).where(
+                SalesInvoiceLine.tenant_id == tenant_id,
+                SalesInvoiceLine.invoice_id == invoice_id,
+            )
+        )
+    ).all()
+    done = await _returned_so_far(db, tenant_id, [line_id for line_id, _ in all_lines])
+    now = {entry[0].id: entry[1] for entry in planned}
+    return all(
+        _q4(done.get(line_id, (_ZERO, _ZERO, _ZERO))[0] + now.get(line_id, _ZERO)) >= _q4(sold)
+        for line_id, sold in all_lines
+    )
 
 
 async def create_return(
@@ -217,10 +258,22 @@ async def create_return(
             ).where(SalesReturn.tenant_id == tenant_id, SalesReturn.invoice_id == invoice_id)
         )
     ).one()
-    total = min(
-        money(sum((entry[3] for entry in planned), _ZERO)),
-        money(invoice.total - Decimal(earlier_total)),
-    )
+    left_on_invoice = money(invoice.total - Decimal(earlier_total))
+    total = min(money(sum((entry[3] for entry in planned), _ZERO)), left_on_invoice)
+    if await _finishes_invoice(db, tenant_id, invoice_id, planned):
+        # The last return takes exactly what is left, so per-line rounding of
+        # the discount never leaves piastres owed on a fully returned invoice.
+        total = left_on_invoice
+        if planned:
+            row, quantity, base_quantity, amount, done_base = planned[-1]
+            drift = total - money(sum((entry[3] for entry in planned), _ZERO))
+            planned[-1] = (
+                row,
+                quantity,
+                base_quantity,
+                max(money(amount + drift), _ZERO),
+                done_base,
+            )
     total = max(total, _ZERO)
     credit_reduction = max(min(total, money(invoice.credit - Decimal(credit_taken))), _ZERO)
     cash_refund = money(total - credit_reduction)

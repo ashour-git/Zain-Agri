@@ -120,17 +120,23 @@ async def _price_lines(db: AsyncSession, context: TenantContext, payload: SaleIn
             raise ConflictError(ARCHIVED, details={"product_name": product.name_ar})
         unit_id = entry.unit_id or product.base_unit_id
         factor = await _conversion_factor(db, tenant_id=tenant_id, product=product, unit_id=unit_id)
-        listed = money(product.sale_price * factor) if product.sale_price is not None else None
-        if entry.unit_price is None:
-            if listed is None:
-                raise UnprocessableError(NO_PRICE, details={"product_name": product.name_ar})
-            price = listed
-        else:
-            price = money(entry.unit_price)
-            if price != listed and not can_discount:
+        # The listed price is never rounded before it is multiplied: 500 g of a
+        # 25.00/kg product is 12.50, not 500 x round(0.025) = 15.00.
+        exact = product.sale_price * factor if product.sale_price is not None else None
+        listed = money(exact) if exact is not None else None
+        requested = money(entry.unit_price) if entry.unit_price is not None else None
+        if requested is not None and requested != listed:
+            if not can_discount:
                 raise ForbiddenError(
                     NO_DISCOUNT, details={"permission": Permission.SALES_DISCOUNT.value}
                 )
+            price = requested
+            line_total = money(entry.quantity * price)
+        else:
+            if exact is None or listed is None:
+                raise UnprocessableError(NO_PRICE, details={"product_name": product.name_ar})
+            price = listed
+            line_total = money(entry.quantity * exact)
         lines.append(
             _Line(
                 product=product,
@@ -138,7 +144,7 @@ async def _price_lines(db: AsyncSession, context: TenantContext, payload: SaleIn
                 quantity=entry.quantity,
                 base_quantity=_q4(entry.quantity * factor),
                 unit_price=price,
-                line_total=money(entry.quantity * price),
+                line_total=line_total,
             )
         )
     return lines

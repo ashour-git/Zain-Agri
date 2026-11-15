@@ -103,7 +103,7 @@ async def test_revoke_kills_the_link(client: AsyncClient, owner_session: AsyncSe
     assert detail["shared"] is False
 
 
-async def test_reshare_gives_a_new_token_and_kills_the_old(
+async def test_revoke_then_share_gives_a_new_token_and_kills_the_old(
     client: AsyncClient, owner_session: AsyncSession
 ) -> None:
     _, headers, _, _ = await seeded_login(client, owner_session)
@@ -114,8 +114,10 @@ async def test_reshare_gives_a_new_token_and_kills_the_old(
     second = await _share(client, headers, invoice["id"])
     third = await _share(client, headers, invoice["id"])
 
-    assert len({first, second, third}) == 3
-    assert (await client.get(f"{PUBLIC}/{second}")).status_code == 404
+    # Sharing again returns the same link; only a revoke changes it.
+    assert first != second
+    assert second == third
+    assert (await client.get(f"{PUBLIC}/{first}")).status_code == 404
     assert (await client.get(f"{PUBLIC}/{third}")).status_code == 200
 
 

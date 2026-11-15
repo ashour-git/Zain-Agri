@@ -7,7 +7,7 @@ import { FormError, TextareaField, controlClass } from "@/components/ui/field";
 import { Modal } from "@/components/ui/modal";
 import { ApiRequestError } from "@/lib/api";
 import { formatMoney, formatQuantity, toNumber } from "@/lib/catalog";
-import { type ReturnResult, type Sale, createReturn } from "@/lib/sales";
+import { type ReturnResult, type Sale, createReturn, normalizeNumber } from "@/lib/sales";
 import { cn } from "@/lib/utils";
 
 /** «مرتجع»: choose quantities per line; money comes off the debt first, the rest is cash. */
@@ -89,7 +89,9 @@ export function ReturnDialog({
                     aria-label={`كمية المرتجع من ${line.name_ar} (حتى ${formatQuantity(String(available))})`}
                     placeholder={`حتى ${formatQuantity(String(available))}`}
                     value={quantities[line.id] ?? ""}
-                    onChange={(event) => setQuantities((current) => ({ ...current, [line.id]: event.target.value }))}
+                    onChange={(event) =>
+                      setQuantities((current) => ({ ...current, [line.id]: normalizeNumber(event.target.value) }))
+                    }
                     className={cn(controlClass, "w-24 tabular-nums")}
                   />
                 ) : (

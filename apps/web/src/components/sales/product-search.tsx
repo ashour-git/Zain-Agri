@@ -60,14 +60,29 @@ export function ProductSearch({ onPick }: { onPick: (product: Product) => void }
   const onEnter = async () => {
     const term = query.trim();
     if (!term) return;
-    const items = await search(term).catch(() => results);
+    // A highlighted result the cashier is looking at wins.
+    if (open && results[active]) {
+      pick(results[active]);
+      return;
+    }
+    // A scanner types the next code right away: free the box before searching.
+    setQuery("");
+    const items = await search(term).catch((): Product[] => []);
     const lowered = term.toLowerCase();
-    const exact = items.find(
-      (item) => item.barcode === term || item.sku.toLowerCase() === lowered,
-    );
-    const chosen = exact ?? (open ? items[active] ?? items[0] : items[0]);
-    if (chosen) pick(chosen);
-    else setNotFound(term);
+    const exact = items.find((item) => item.barcode === term || item.sku.toLowerCase() === lowered);
+    const chosen = exact ?? (items.length === 1 ? items[0] : undefined);
+    if (chosen) {
+      onPick(chosen);
+      return;
+    }
+    if (items.length > 1) {
+      setQuery(term);
+      setResults(items);
+      setActive(0);
+      setOpen(true);
+    } else {
+      setNotFound(term);
+    }
   };
 
   return (
