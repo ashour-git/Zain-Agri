@@ -9,6 +9,7 @@ import { buttonClass } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, PageHeader } from "@/components/ui/card";
 import { selectClass } from "@/components/ui/data";
 import { FormError, FormNotice } from "@/components/ui/field";
+import { FieldLabel, InfoNote } from "@/components/ui/info-tip";
 import { ApiRequestError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-provider";
 import { formatQuantity } from "@/lib/catalog";
@@ -317,9 +318,11 @@ export default function ImportPage() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <label htmlFor="import-unit" className="block text-[13px] font-medium text-ink">
-                  الوحدة عند عدم ذكرها
-                </label>
+                <FieldLabel
+                  htmlFor="import-unit"
+                  label="الوحدة عند عدم ذكرها"
+                  info="لو الملف ليس فيه عمود للوحدة، أو كُتبت وحدة لا نعرفها، نستخدم هذه الوحدة. اختر الوحدة التي تبيع بها أغلب أصنافك."
+                />
                 <select
                   id="import-unit"
                   value={options.default_unit_id ?? ""}
@@ -336,6 +339,10 @@ export default function ImportPage() {
                 </select>
               </div>
               <div className="space-y-2 text-sm text-ink">
+                <InfoNote
+                  title="التصنيفات والشركات"
+                  info="لو في الملف تصنيف أو شركة غير موجودة عندك، ننشئها تلقائيًا. ألغِ الاختيار إذا لا تريد إنشاء جديد، وسيُترك الحقل فارغًا لهذه الأصناف."
+                />
                 <label className="flex items-center gap-2">
                   <input
                     type="checkbox"

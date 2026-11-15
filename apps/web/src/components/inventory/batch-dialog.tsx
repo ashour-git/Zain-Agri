@@ -72,6 +72,7 @@ export function BatchDialog({
 
         <Field
           label="رقم الدفعة *"
+          info="رقم التشغيلة المطبوع على العبوة (Lot أو Batch). لو لا يوجد، اكتب أي رقم يميّز هذه الشحنة، مثل تاريخ استلامها."
           name="batch_number"
           dir="ltr"
           value={batchNumber}
@@ -80,6 +81,7 @@ export function BatchDialog({
         />
         <Field
           label="تاريخ الصلاحية"
+          info="تاريخ انتهاء الصلاحية المطبوع على العبوة. اختياري، ويساعدك المساعد في معرفة ما سينتهي قريبًا."
           name="batch_expiry"
           type="date"
           dir="ltr"

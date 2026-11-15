@@ -10,6 +10,7 @@ import { buttonClass } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, PageHeader } from "@/components/ui/card";
 import { EmptyState, LoadError, SkeletonRows, selectClass } from "@/components/ui/data";
 import { Field, FormError, FormNotice } from "@/components/ui/field";
+import { FieldLabel, InfoNote } from "@/components/ui/info-tip";
 import { ApiRequestError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-provider";
 import { formatDateTime } from "@/lib/catalog";
@@ -135,6 +136,7 @@ export default function StocktakeListPage() {
           <CardContent className="space-y-4">
             <Field
               label="اسم الجرد (اختياري)"
+              info="اسم يساعدك تتذكر هذا الجرد لاحقًا، مثل «جرد آخر الشهر». لو تركته فارغًا نسمّيه بتاريخ اليوم."
               name="stocktake-name"
               value={name}
               onChange={(event) => setName(event.target.value)}
@@ -142,9 +144,11 @@ export default function StocktakeListPage() {
               maxLength={120}
             />
             <div className="space-y-1.5">
-              <label htmlFor="stocktake-category" className="block text-[13px] font-medium text-ink">
-                التصنيف
-              </label>
+              <FieldLabel
+                htmlFor="stocktake-category"
+                label="التصنيف"
+                info="لو المخزن كبير، اجرد قسمًا واحدًا في كل مرة (مثل الأسمدة اليوم والبذور غدًا). اختر «كل المنتجات» لجرد المحل كله مرة واحدة."
+              />
               <select
                 id="stocktake-category"
                 value={categoryId}
@@ -159,6 +163,10 @@ export default function StocktakeListPage() {
                 ))}
               </select>
             </div>
+            <InfoNote
+              title="العدّ بدون رؤية الرصيد"
+              info="مفعّل من الأفضل: من يعدّ لا يرى الرقم المسجّل في النظام، فيكتب ما يراه فعلًا على الرف. لو رأى الرقم قد يكتبه كما هو دون أن يعدّ. بعد أن يكتب العدد يظهر له الفرق."
+            />
             <label className="flex items-start gap-2.5 text-sm text-ink">
               <input
                 type="checkbox"

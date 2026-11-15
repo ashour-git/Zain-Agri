@@ -425,3 +425,62 @@ async def test_products_are_scoped_to_the_session_workspace(
     response = await client.get(f"/api/v1/products/{product['id']}", headers=other_headers)
 
     assert response.status_code == 404
+
+
+# --- only the Arabic name is required ----------------------------------------------
+
+
+async def test_a_product_needs_only_its_arabic_name(
+    client: AsyncClient, owner_session: AsyncSession
+) -> None:
+    _, headers, _, _ = await seeded_login(client, owner_session)
+
+    first = await client.post(
+        "/api/v1/products",
+        json={"name_ar": "يوريا", "base_unit_id": str(unit_id("piece"))},
+        headers=headers,
+    )
+    second = await client.post(
+        "/api/v1/products",
+        json={"name_ar": "بذور", "sku": "   ", "base_unit_id": str(unit_id("piece"))},
+        headers=headers,
+    )
+
+    assert first.status_code == 201, first.text
+    assert second.status_code == 201, second.text
+    assert (first.json()["sku"], second.json()["sku"]) == ("Z-00001", "Z-00002")
+
+
+async def test_generated_codes_continue_after_existing_ones(
+    client: AsyncClient, owner_session: AsyncSession
+) -> None:
+    _, headers, _, _ = await seeded_login(client, owner_session)
+    await create_product_api(client, headers, sku="Z-00041")
+    await create_product_api(client, headers, sku="UREA-46")
+
+    created = await client.post(
+        "/api/v1/products",
+        json={"name_ar": "سلة", "base_unit_id": str(unit_id("piece"))},
+        headers=headers,
+    )
+
+    assert created.json()["sku"] == "Z-00042"
+
+
+async def test_the_unit_defaults_to_piece(client: AsyncClient, owner_session: AsyncSession) -> None:
+    _, headers, _, _ = await seeded_login(client, owner_session)
+
+    created = await client.post("/api/v1/products", json={"name_ar": "خرطوم"}, headers=headers)
+
+    assert created.status_code == 201, created.text
+    assert created.json()["base_unit_id"] == str(unit_id("piece"))
+
+
+async def test_a_blank_name_is_still_refused(
+    client: AsyncClient, owner_session: AsyncSession
+) -> None:
+    _, headers, _, _ = await seeded_login(client, owner_session)
+
+    response = await client.post("/api/v1/products", json={"name_ar": "  "}, headers=headers)
+
+    assert response.status_code == 422

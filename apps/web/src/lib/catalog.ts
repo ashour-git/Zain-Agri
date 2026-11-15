@@ -30,6 +30,8 @@ export const WRITABLE_MOVEMENTS: MovementType[] = [
   "opening_balance",
   "adjustment_in",
   "adjustment_out",
+  "damage",
+  "expiry",
 ];
 
 const INBOUND = new Set<MovementType>([

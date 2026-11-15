@@ -6,11 +6,12 @@ the inventory balance projection: the catalog list shows stock without the
 frontend making a second request per row.
 """
 
+import re
 import uuid
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -342,6 +343,30 @@ def _conflict_from_integrity(exc: IntegrityError, fallback: str) -> ConflictErro
     return ConflictError(fallback)
 
 
+GENERATED_SKU = re.compile(r"^z-(\d+)$", re.IGNORECASE)
+
+
+async def next_generated_sku(db: AsyncSession, tenant_id: uuid.UUID) -> str:
+    """The next free «Z-00001»-style code in this shop.
+
+    A transaction-scoped advisory lock per shop makes two products saved at the
+    same moment get different codes instead of one failing on the unique index.
+    """
+    await db.execute(
+        text("SELECT pg_advisory_xact_lock(hashtext(:key))"), {"key": f"sku:{tenant_id}"}
+    )
+    codes = (
+        await db.execute(
+            select(Product.sku).where(Product.tenant_id == tenant_id, Product.sku.ilike("z-%"))
+        )
+    ).scalars()
+    highest = max(
+        (int(match.group(1)) for code in codes if (match := GENERATED_SKU.match(code))),
+        default=0,
+    )
+    return f"Z-{highest + 1:05d}"
+
+
 async def create_product_core(
     db: AsyncSession,
     *,
@@ -360,6 +385,12 @@ async def create_product_core(
             "Your role cannot set cost prices",
             details={"permission": Permission.INVENTORY_VIEW_COST.value},
         )
+
+    if not payload.sku:
+        payload = payload.model_copy(
+            update={"sku": await next_generated_sku(db, context.tenant.id)}
+        )
+    assert payload.sku is not None
 
     if not validated:
         unit_ids = [

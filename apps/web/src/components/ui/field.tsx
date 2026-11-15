@@ -1,5 +1,6 @@
 import type { ComponentProps } from "react";
 
+import { FieldLabel } from "@/components/ui/info-tip";
 import { cn } from "@/lib/utils";
 
 export const controlClass = cn(
@@ -11,18 +12,17 @@ export function Field({
   label,
   error,
   hint,
+  info,
   className,
   id,
   ...props
-}: ComponentProps<"input"> & { label: string; error?: string; hint?: string }) {
+}: ComponentProps<"input"> & { label: string; error?: string; hint?: string; info?: string }) {
   const inputId = id ?? props.name;
   const describedBy = error ? `${inputId}-error` : hint ? `${inputId}-hint` : undefined;
 
   return (
     <div className="space-y-1.5">
-      <label htmlFor={inputId} className="block text-[13px] font-medium text-ink">
-        {label}
-      </label>
+      <FieldLabel htmlFor={inputId} label={label} info={info} />
       <input
         id={inputId}
         aria-invalid={error ? true : undefined}
@@ -47,18 +47,17 @@ export function SelectField({
   label,
   error,
   hint,
+  info,
   className,
   children,
   ...props
-}: ComponentProps<"select"> & { label: string; error?: string; hint?: string }) {
+}: ComponentProps<"select"> & { label: string; error?: string; hint?: string; info?: string }) {
   const selectId = props.id ?? props.name;
   const describedBy = error ? `${selectId}-error` : hint ? `${selectId}-hint` : undefined;
 
   return (
     <div className="space-y-1.5">
-      <label htmlFor={selectId} className="block text-[13px] font-medium text-ink">
-        {label}
-      </label>
+      <FieldLabel htmlFor={selectId} label={label} info={info} />
       <select
         id={selectId}
         aria-invalid={error ? true : undefined}
@@ -84,16 +83,15 @@ export function SelectField({
 export function TextareaField({
   label,
   hint,
+  info,
   className,
   ...props
-}: ComponentProps<"textarea"> & { label: string; hint?: string }) {
+}: ComponentProps<"textarea"> & { label: string; hint?: string; info?: string }) {
   const textareaId = props.id ?? props.name;
 
   return (
     <div className="space-y-1.5">
-      <label htmlFor={textareaId} className="block text-[13px] font-medium text-ink">
-        {label}
-      </label>
+      <FieldLabel htmlFor={textareaId} label={label} info={info} />
       <textarea
         id={textareaId}
         className={cn(controlClass, "min-h-20 resize-y", className)}

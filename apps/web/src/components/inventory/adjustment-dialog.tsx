@@ -186,6 +186,7 @@ export function AdjustmentDialog({
         <div className="grid gap-3 sm:grid-cols-2">
           <SelectField
             label="المنتج *"
+            info="الصنف الذي تريد تغيير كميته في المخزن."
             name="adjustment_product"
             value={productId}
             onChange={(event) => changeProduct(event.target.value)}
@@ -199,6 +200,7 @@ export function AdjustmentDialog({
           </SelectField>
           <SelectField
             label="نوع الحركة *"
+            info="رصيد افتتاحي: الكمية الموجودة عندك أول مرة تسجّل الصنف (مرة واحدة فقط). تسوية بالزيادة: وجدت كمية أكثر من المسجّلة. تسوية بالنقص: الكمية أقل من المسجّلة. تالف أو منتهي الصلاحية: بضاعة خرجت لأنها فسدت أو انتهت."
             name="movement_type"
             value={movementType}
             onChange={(event) => setMovementType(event.target.value as MovementType)}
@@ -212,6 +214,7 @@ export function AdjustmentDialog({
 
           <Field
             label="الكمية *"
+            info="عدد الوحدات التي دخلت أو خرجت، وليس الرصيد الجديد. مثال: لو عندك 10 ووجدت 12 اكتب 2 مع «تسوية بالزيادة»."
             name="adjustment_quantity"
             dir="ltr"
             inputMode="decimal"
@@ -221,6 +224,7 @@ export function AdjustmentDialog({
           />
           <SelectField
             label="الوحدة"
+            info="الوحدة التي تكتب بها الكمية. تظهر هنا الوحدات المضافة لهذا الصنف في «تحويلات الوحدات»، ويحوّلها النظام تلقائيًا."
             name="adjustment_unit"
             value={unitId || baseUnitId}
             onChange={(event) => setUnitId(event.target.value)}
@@ -237,6 +241,7 @@ export function AdjustmentDialog({
           {tracksBatches ? (
             <SelectField
               label="الدفعة *"
+              info="هذا الصنف يُتابَع بالدفعات. اختر الدفعة (التشغيلة) التي دخلت أو خرجت منها الكمية."
               name="adjustment_batch"
               value={batchId}
               onChange={(event) => setBatchId(event.target.value)}
@@ -259,6 +264,7 @@ export function AdjustmentDialog({
           {canSetCost && isInbound(movementType) ? (
             <Field
               label="تكلفة الوحدة الأساسية"
+              info="كم دفعت في الوحدة الواحدة من هذه الكمية. اختياري، ويظهر لك أنت فقط. يفيد لاحقًا في معرفة قيمة البضاعة والربح."
               name="adjustment_unit_cost"
               dir="ltr"
               inputMode="decimal"
@@ -272,6 +278,7 @@ export function AdjustmentDialog({
 
         <TextareaField
           label="سبب الحركة *"
+          info="جملة قصيرة توضح لماذا تغيّرت الكمية، مثل «وجدنا شيكارتين زيادة في المخزن». تُحفظ في السجل ولا تُمحى، فتعرف لاحقًا ما حدث."
           name="adjustment_reason"
           value={reason}
           onChange={(event) => setReason(event.target.value)}

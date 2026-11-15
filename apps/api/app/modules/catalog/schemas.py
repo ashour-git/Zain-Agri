@@ -170,15 +170,20 @@ class ProductListOut(BaseModel):
     page_size: int
 
 
+# Seeded by migration 0004: «قطعة», the unit a product gets when none is chosen.
+PIECE_UNIT_ID = uuid.UUID("0192f000-0000-4000-8000-000000000001")
+
+
 class ProductCreate(BaseModel):
-    sku: str = Field(min_length=1, max_length=64)
+    # Only the Arabic name is required. A blank code is generated (Z-00001...).
+    sku: str | None = Field(default=None, max_length=64)
     barcode: str | None = Field(default=None, max_length=64)
     name_ar: str = Field(min_length=1, max_length=200)
     name: str | None = Field(default=None, max_length=200)
     description: str | None = None
     category_id: uuid.UUID | None = None
     brand_id: uuid.UUID | None = None
-    base_unit_id: uuid.UUID
+    base_unit_id: uuid.UUID = PIECE_UNIT_ID
     purchase_unit_id: uuid.UUID | None = None
     sale_unit_id: uuid.UUID | None = None
     cost_price: Decimal | None = Field(default=None, ge=0, max_digits=14, decimal_places=2)
@@ -186,7 +191,7 @@ class ProductCreate(BaseModel):
     minimum_stock: Decimal = Field(default=Decimal("0"), ge=0, max_digits=18, decimal_places=4)
     tracks_batches: bool = False
 
-    @field_validator("sku", "name_ar", mode="after")
+    @field_validator("name_ar", mode="after")
     @classmethod
     def _clean_required(cls, value: str) -> str:
         cleaned = value.strip()
@@ -194,7 +199,7 @@ class ProductCreate(BaseModel):
             raise ValueError("must not be blank")
         return cleaned
 
-    @field_validator("barcode", "name", "description", mode="after")
+    @field_validator("sku", "barcode", "name", "description", mode="after")
     @classmethod
     def _clean_optional(cls, value: str | None) -> str | None:
         if value is None:
