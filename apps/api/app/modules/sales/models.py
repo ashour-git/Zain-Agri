@@ -111,6 +111,8 @@ class SalesInvoiceLine(UUIDPrimaryKeyMixin, Base):
         ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
     )
     invoice_id: Mapped[uuid.UUID] = mapped_column(nullable=False)
+    # Order the lines were entered in at the counter (1, 2, 3...).
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
     product_id: Mapped[uuid.UUID] = mapped_column(nullable=False)
     # Snapshot: a later rename or price change never alters an old invoice.
     name_ar: Mapped[str] = mapped_column(String(200), nullable=False)

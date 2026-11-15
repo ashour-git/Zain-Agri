@@ -49,6 +49,7 @@ const ACTION_LABELS: Record<string, string> = {
   "customer.updated": "تعديل عميل",
   "customer.payment": "تحصيل من عميل",
   "customer.correction": "تصحيح حساب عميل",
+  "sale.created": "فاتورة بيع",
 };
 
 const ACTION_VARIANTS: Record<string, "brand" | "warning" | "neutral"> = {

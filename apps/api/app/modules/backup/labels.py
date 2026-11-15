@@ -45,6 +45,7 @@ AUDIT_ACTION_LABELS_AR: dict[str, str] = {
     "customer.updated": "تعديل عميل",
     "customer.payment": "تحصيل من عميل",
     "customer.correction": "تصحيح حساب عميل",
+    "sale.created": "فاتورة بيع",
 }
 
 ENTITY_LABELS_AR: dict[str, str] = {
@@ -58,6 +59,7 @@ ENTITY_LABELS_AR: dict[str, str] = {
     "stocktake": "جرد",
     "import": "استيراد",
     "customer": "عميل",
+    "sales_invoice": "فاتورة بيع",
     "backup": "النسخة اليومية",
 }
 

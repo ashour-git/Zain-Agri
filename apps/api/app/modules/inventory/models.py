@@ -61,6 +61,12 @@ IMPLEMENTED_MOVEMENT_TYPES: frozenset[StockMovementType] = frozenset(
     }
 )
 
+# Written only by documents (a sales invoice, a sales return), never typed in
+# the manual adjustment dialog.
+DOCUMENT_MOVEMENT_TYPES: frozenset[StockMovementType] = frozenset(
+    {StockMovementType.SALE, StockMovementType.CUSTOMER_RETURN}
+)
+
 INBOUND_MOVEMENT_TYPES: frozenset[StockMovementType] = frozenset(
     {
         StockMovementType.OPENING_BALANCE,

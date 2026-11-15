@@ -172,6 +172,7 @@ def upgrade() -> None:
         "sales_invoice_lines",
         sa.Column("tenant_id", sa.Uuid(), nullable=False),
         sa.Column("invoice_id", sa.Uuid(), nullable=False),
+        sa.Column("position", sa.Integer(), nullable=False),
         sa.Column("product_id", sa.Uuid(), nullable=False),
         sa.Column("name_ar", sa.String(length=200), nullable=False),
         sa.Column("unit_id", sa.Uuid(), nullable=False),

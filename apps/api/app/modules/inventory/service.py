@@ -39,6 +39,7 @@ from app.modules.catalog.schemas import StockStatus
 from app.modules.catalog.service import _q4, stock_status
 from app.modules.identity.models import User
 from app.modules.inventory.models import (
+    DOCUMENT_MOVEMENT_TYPES,
     IMPLEMENTED_MOVEMENT_TYPES,
     INBOUND_MOVEMENT_TYPES,
     InventoryBalance,
@@ -433,7 +434,7 @@ async def apply_movement(
     Callers that post several movements (a stocktake) commit once, so the
     whole set is applied or none of it is.
     """
-    if movement_type not in IMPLEMENTED_MOVEMENT_TYPES:
+    if movement_type not in IMPLEMENTED_MOVEMENT_TYPES | DOCUMENT_MOVEMENT_TYPES:
         raise UnprocessableError(f"{movement_type.value} is not writable yet")
     if unit_cost is not None and movement_type not in INBOUND_MOVEMENT_TYPES:
         raise UnprocessableError("Cost can only be recorded on inbound movements")

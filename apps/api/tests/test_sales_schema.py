@@ -71,6 +71,7 @@ async def _seed_shop(session: AsyncSession, tenant: Tenant) -> None:
     line = SalesInvoiceLine(
         tenant_id=tenant.id,
         invoice_id=invoice.id,
+        position=1,
         product_id=product.id,
         name_ar="صنف",
         unit_id=unit_id("piece"),
