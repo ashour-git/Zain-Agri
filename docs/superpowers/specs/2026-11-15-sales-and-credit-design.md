@@ -1,6 +1,6 @@
 # Sales, credit customers and WhatsApp invoices - Design
 
-Status: approved in conversation 2026-11-15, awaiting spec review
+Status: live 2026-11-15 (Neon at 0010; 20-line sale 0.76 s round trip, 0.52 s server)
 Owner: ZAIN AGRI web + API
 
 ## 1. Purpose
