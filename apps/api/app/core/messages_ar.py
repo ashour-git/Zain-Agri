@@ -101,6 +101,10 @@ MESSAGES_AR: dict[str, str] = {
     "The data changed during the import": "تغيّرت البيانات أثناء الاستيراد. أعد المعاينة ثم حاول مرة أخرى.",
     # --- customers and sales ---
     "The amount must not be zero": "المبلغ لا يمكن أن يكون صفرًا.",
+    "Customer not found": "العميل غير موجود.",
+    "A customer with this name already exists": "يوجد عميل بهذا الاسم بالفعل.",
+    "Enter an Egyptian mobile number": "اكتب رقم موبايل مصري صحيح، مثل 01012345678.",
+    "Your role cannot change customer balances": "دورك في المتجر لا يسمح بتعديل حسابات العملاء.",
     # --- framework-level ---
     "Request validation failed": "بعض البيانات المُدخلة غير صالحة. راجعها ثم حاول مرة أخرى.",
     "Internal server error": "حدث خطأ غير متوقع. حاول مرة أخرى بعد قليل.",
