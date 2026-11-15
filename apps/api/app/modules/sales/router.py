@@ -9,13 +9,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.infrastructure.db.session import get_session
 from app.modules.auth.dependencies import CurrentPrincipal, TenantContext, require_permission
 from app.modules.authorization.permissions import Permission
-from app.modules.sales import service
-from app.modules.sales.schemas import SaleIn, SaleListOut, SaleOut
+from app.modules.sales import returns, service
+from app.modules.sales.schemas import ReturnIn, ReturnOut, SaleIn, SaleListOut, SaleOut
 
 router = APIRouter(prefix="/api/v1/sales", tags=["sales"])
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 Seller = Annotated[TenantContext, Depends(require_permission(Permission.SALES_OPERATE))]
+Refunder = Annotated[TenantContext, Depends(require_permission(Permission.SALES_REFUND))]
 
 
 @router.post("", response_model=SaleOut, status_code=status.HTTP_201_CREATED)
@@ -59,3 +60,14 @@ async def get_sale(
     invoice_id: uuid.UUID, context: Seller, principal: CurrentPrincipal, db: SessionDep
 ) -> SaleOut:
     return await service.get_visible_sale(db, context, principal.user_id, invoice_id)
+
+
+@router.post("/{invoice_id}/returns", response_model=ReturnOut, status_code=status.HTTP_201_CREATED)
+async def create_return(
+    invoice_id: uuid.UUID,
+    payload: ReturnIn,
+    context: Refunder,
+    principal: CurrentPrincipal,
+    db: SessionDep,
+) -> ReturnOut:
+    return await returns.create_return(db, context, principal.user_id, invoice_id, payload)

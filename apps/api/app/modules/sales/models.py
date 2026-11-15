@@ -166,7 +166,7 @@ class SalesReturn(UUIDPrimaryKeyMixin, Base):
             ondelete="RESTRICT",
         ),
         CheckConstraint(
-            "total > 0 AND credit_reduction >= 0 AND cash_refund >= 0"
+            "total >= 0 AND credit_reduction >= 0 AND cash_refund >= 0"
             " AND credit_reduction + cash_refund = total",
             name="ck_sales_returns_amounts",
         ),

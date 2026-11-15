@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 MONEY = {"max_digits": 14, "decimal_places": 2}
 
@@ -84,3 +84,29 @@ class SaleListOut(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class ReturnLineIn(BaseModel):
+    line_id: uuid.UUID
+    quantity: Decimal = Field(gt=0, max_digits=18, decimal_places=4)
+
+
+class ReturnIn(BaseModel):
+    lines: list[ReturnLineIn] = Field(min_length=1, max_length=200)
+    reason: str = Field(min_length=3, max_length=300)
+
+    @field_validator("reason")
+    @classmethod
+    def _reason(cls, value: str) -> str:
+        cleaned = " ".join(value.split())
+        if len(cleaned) < 3:
+            raise ValueError("reason is too short")
+        return cleaned
+
+
+class ReturnOut(BaseModel):
+    id: uuid.UUID
+    number: int
+    total: Decimal
+    credit_reduction: Decimal
+    cash_refund: Decimal
