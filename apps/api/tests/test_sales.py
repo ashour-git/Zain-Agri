@@ -494,3 +494,66 @@ async def test_lines_keep_the_order_they_were_entered(
     invoice = await sell(client, headers, sale_body([line(p) for p in products]))
 
     assert [entry["name_ar"] for entry in invoice["lines"]] == names
+
+
+# --- reading invoices ----------------------------------------------------------------
+
+
+async def test_cashier_lists_only_own_invoices(
+    client: AsyncClient, owner_session: AsyncSession
+) -> None:
+    from tests.support import auth_header, login, make_membership, make_user
+
+    _, owner, tenant, _ = await seeded_login(client, owner_session)
+    product = await stocked_product(client, owner)
+    cashier_user = await make_user(owner_session)
+    await make_membership(
+        owner_session, tenant=tenant, user=cashier_user, role=MembershipRole.CASHIER
+    )
+    await owner_session.commit()
+    cashier = auth_header(await login(client, cashier_user.email, tenant_id=tenant.id))
+
+    by_owner = await sell(client, owner, sale_body([line(product)]))
+    by_cashier = await sell(client, cashier, sale_body([line(product)]))
+
+    cashier_list = (await client.get(SALES, headers=cashier)).json()
+    owner_list = (await client.get(SALES, headers=owner)).json()
+
+    assert [item["id"] for item in cashier_list["items"]] == [by_cashier["id"]]
+    assert {item["id"] for item in owner_list["items"]} == {by_owner["id"], by_cashier["id"]}
+    # The cashier cannot open someone else's invoice either.
+    assert (await client.get(f"{SALES}/{by_owner['id']}", headers=cashier)).status_code == 404
+
+
+async def test_owner_lists_newest_first_and_searches(
+    client: AsyncClient, owner_session: AsyncSession
+) -> None:
+    _, headers, _, _ = await seeded_login(client, owner_session)
+    product = await stocked_product(client, headers)
+    customer_id = await _customer(client, headers, "الحاج سيد")
+    await sell(client, headers, sale_body([line(product)]))
+    await sell(client, headers, sale_body([line(product)], paid="0", customer_id=customer_id))
+
+    everything = (await client.get(SALES, headers=headers)).json()
+    by_number = (await client.get(f"{SALES}?q=1", headers=headers)).json()
+    by_customer = (await client.get(f"{SALES}?q=سيد", headers=headers)).json()
+    for_customer = (await client.get(f"{SALES}?customer_id={customer_id}", headers=headers)).json()
+
+    assert [item["number"] for item in everything["items"]] == [2, 1]
+    assert everything["items"][0]["customer_name"] == "الحاج سيد"
+    assert everything["items"][0]["credit"] == "25.00"
+    assert [item["number"] for item in by_number["items"]] == [1]
+    assert [item["number"] for item in by_customer["items"]] == [2]
+    assert [item["number"] for item in for_customer["items"]] == [2]
+
+
+async def test_another_shop_cannot_read_an_invoice(
+    client: AsyncClient, owner_session: AsyncSession
+) -> None:
+    _, mine, _, _ = await seeded_login(client, owner_session, tenant_name="متجري")
+    _, theirs, _, _ = await seeded_login(client, owner_session, tenant_name="متجر آخر")
+    product = await stocked_product(client, mine)
+    invoice = await sell(client, mine, sale_body([line(product)]))
+
+    assert (await client.get(f"{SALES}/{invoice['id']}", headers=theirs)).status_code == 404
+    assert (await client.get(SALES, headers=theirs)).json()["items"] == []

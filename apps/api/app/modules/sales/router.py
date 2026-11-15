@@ -3,14 +3,14 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.infrastructure.db.session import get_session
 from app.modules.auth.dependencies import CurrentPrincipal, TenantContext, require_permission
 from app.modules.authorization.permissions import Permission
 from app.modules.sales import service
-from app.modules.sales.schemas import SaleIn, SaleOut
+from app.modules.sales.schemas import SaleIn, SaleListOut, SaleOut
 
 router = APIRouter(prefix="/api/v1/sales", tags=["sales"])
 
@@ -33,6 +33,29 @@ async def create_sale(
     return sale
 
 
+@router.get("", response_model=SaleListOut)
+async def list_sales(
+    context: Seller,
+    principal: CurrentPrincipal,
+    db: SessionDep,
+    q: Annotated[str | None, Query(max_length=100)] = None,
+    customer_id: uuid.UUID | None = None,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 25,
+) -> SaleListOut:
+    return await service.list_sales(
+        db,
+        context,
+        principal.user_id,
+        q=q,
+        customer_id=customer_id,
+        page=page,
+        page_size=page_size,
+    )
+
+
 @router.get("/{invoice_id}", response_model=SaleOut)
-async def get_sale(invoice_id: uuid.UUID, context: Seller, db: SessionDep) -> SaleOut:
-    return await service.get_sale(db, context.tenant.id, invoice_id)
+async def get_sale(
+    invoice_id: uuid.UUID, context: Seller, principal: CurrentPrincipal, db: SessionDep
+) -> SaleOut:
+    return await service.get_visible_sale(db, context, principal.user_id, invoice_id)

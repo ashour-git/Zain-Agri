@@ -23,7 +23,7 @@ from app.modules.audit import service as audit
 from app.modules.auth.dependencies import TenantContext
 from app.modules.authorization.permissions import Permission
 from app.modules.catalog.models import Product, ProductStatus, UnitOfMeasure
-from app.modules.catalog.service import _q4
+from app.modules.catalog.service import _escape_like, _q4
 from app.modules.customers.ledger import post_entry
 from app.modules.customers.models import Customer, LedgerKind
 from app.modules.identity.models import User
@@ -42,7 +42,9 @@ from app.modules.sales.schemas import (
     CustomerRef,
     SaleIn,
     SaleLineOut,
+    SaleListOut,
     SaleOut,
+    SaleSummaryOut,
 )
 
 logger = logging.getLogger("zain.sales")
@@ -443,4 +445,83 @@ async def get_sale(db: AsyncSession, tenant_id: uuid.UUID, invoice_id: uuid.UUID
         created_at=invoice.created_at,
         created_by_name=creator,
         shared=invoice.share_token_hash is not None,
+    )
+
+
+def sees_all_sales(context: TenantContext) -> bool:
+    """Owner and manager see every invoice; a cashier sees the ones they made."""
+    return context.allows(Permission.SALES_DISCOUNT)
+
+
+async def get_visible_sale(
+    db: AsyncSession, context: TenantContext, actor_id: uuid.UUID, invoice_id: uuid.UUID
+) -> SaleOut:
+    if not sees_all_sales(context):
+        owner = await db.scalar(
+            select(SalesInvoice.created_by).where(
+                SalesInvoice.tenant_id == context.tenant.id, SalesInvoice.id == invoice_id
+            )
+        )
+        if owner != actor_id:
+            raise NotFoundError(NOT_FOUND)
+    return await get_sale(db, context.tenant.id, invoice_id)
+
+
+async def list_sales(
+    db: AsyncSession,
+    context: TenantContext,
+    actor_id: uuid.UUID,
+    *,
+    q: str | None,
+    customer_id: uuid.UUID | None,
+    page: int,
+    page_size: int,
+) -> SaleListOut:
+    tenant_id = context.tenant.id
+    query = (
+        select(SalesInvoice, Customer.name, User.full_name)
+        .outerjoin(
+            Customer,
+            and_(
+                Customer.id == SalesInvoice.customer_id,
+                Customer.tenant_id == SalesInvoice.tenant_id,
+            ),
+        )
+        .outerjoin(User, User.id == SalesInvoice.created_by)
+        .where(SalesInvoice.tenant_id == tenant_id)
+    )
+    if not sees_all_sales(context):
+        query = query.where(SalesInvoice.created_by == actor_id)
+    if customer_id is not None:
+        query = query.where(SalesInvoice.customer_id == customer_id)
+    if q and q.strip():
+        term = q.strip()
+        if term.isdigit():
+            query = query.where(SalesInvoice.number == int(term))
+        else:
+            query = query.where(Customer.name.ilike(f"%{_escape_like(term)}%", escape="\\"))
+    total = (await db.execute(select(func.count()).select_from(query.subquery()))).scalar_one()
+    rows = (
+        await db.execute(
+            query.order_by(SalesInvoice.number.desc())
+            .limit(page_size)
+            .offset((page - 1) * page_size)
+        )
+    ).all()
+    return SaleListOut(
+        items=[
+            SaleSummaryOut(
+                id=invoice.id,
+                number=invoice.number,
+                customer_name=customer_name,
+                total=invoice.total,
+                credit=invoice.credit,
+                created_at=invoice.created_at,
+                created_by_name=creator,
+            )
+            for invoice, customer_name, creator in rows
+        ],
+        total=total,
+        page=page,
+        page_size=page_size,
     )
