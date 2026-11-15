@@ -6,7 +6,9 @@ import {
   History,
   LayoutDashboard,
   Package,
+  ReceiptText,
   Settings,
+  ShoppingCart,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -22,14 +24,16 @@ type NavItem = {
 };
 
 /*
- * Only screens that work today. Modules still being built (sales, purchasing,
- * customers, cash, reports) join this list when they ship, instead of sitting
- * in the menu as disabled promises.
+ * Only screens that work today. Modules still being built (purchasing, cash,
+ * reports) join this list when they ship, instead of sitting in the menu as
+ * disabled promises.
  */
 const sections: { label: string; items: NavItem[] }[] = [
   {
     label: "المتجر",
     items: [
+      { label: "البيع", icon: ShoppingCart, href: "/sales", permission: "sales.operate" },
+      { label: "الفواتير", icon: ReceiptText, href: "/sales/history", permission: "sales.operate" },
       { label: "نظرة عامة", icon: LayoutDashboard, href: "/" },
       { label: "المخزون", icon: Boxes, href: "/inventory", permission: "inventory.read" },
       { label: "المنتجات", icon: Package, href: "/products", permission: "products.read" },
@@ -87,7 +91,17 @@ export function NavLists({ onNavigate }: { onNavigate?: () => void }) {
   const { session } = useAuth();
   const permissions = session?.permissions ?? [];
   const visible = (item: NavItem) => !item.permission || permissions.includes(item.permission);
-  const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
+  // The longest matching link wins, so /sales/history lights «الفواتير» only;
+  // an opened invoice (/sales/<id>) belongs to «الفواتير» too.
+  const matches = (href: string) =>
+    href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
+  const activeHref = /^\/sales\/[0-9a-f-]{36}$/.test(pathname)
+    ? "/sales/history"
+    : sections
+        .flatMap((section) => section.items.map((item) => item.href))
+        .filter(matches)
+        .sort((a, b) => b.length - a.length)[0];
+  const isActive = (href: string) => href === activeHref;
 
   return (
     <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-2" aria-label="التنقل الرئيسي">

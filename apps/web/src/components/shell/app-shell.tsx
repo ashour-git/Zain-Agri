@@ -10,6 +10,8 @@ import { useAuth } from "@/lib/auth-provider";
 
 const TITLES: Record<string, string> = {
   "/": "نظرة عامة",
+  "/sales": "البيع",
+  "/sales/history": "الفواتير",
   "/products": "المنتجات",
   "/inventory": "المخزون",
   "/audit": "سجل التعديلات",
@@ -24,6 +26,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const title = pathname.startsWith("/inventory/stocktake")
     ? "الجرد"
+    : /^\/sales\/[0-9a-f-]{36}$/.test(pathname)
+      ? "فاتورة بيع"
     : pathname === "/products/import"
       ? "استيراد المنتجات"
       : (TITLES[pathname] ?? "ZAIN AGRI");
@@ -38,8 +42,11 @@ export function AppShell({ children }: { children: ReactNode }) {
       >
         تخطَّ إلى المحتوى
       </a>
-      <Sidebar workspaceName={workspaceName} />
+      <div data-print-hide className="contents">
+        <Sidebar workspaceName={workspaceName} />
+      </div>
       <div className="flex min-w-0 flex-1 flex-col">
+        <div data-print-hide className="contents">
         <Header
           title={title}
           workspaceName={workspaceName}
@@ -53,6 +60,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <BackupFailureBanner
           isOwner={session?.permissions.includes("tenant.settings.manage") ?? false}
         />
+        </div>
         <main id="main" tabIndex={-1} className="flex-1 outline-none">
           {children}
         </main>
