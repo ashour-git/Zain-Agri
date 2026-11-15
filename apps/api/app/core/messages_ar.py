@@ -99,6 +99,8 @@ MESSAGES_AR: dict[str, str] = {
     "Unknown import field": "حقل غير معروف في ربط الأعمدة.",
     "The sheet has rows with problems": "في الملف صفوف بها مشاكل. صحّحها أو اختر تجاهلها.",
     "The data changed during the import": "تغيّرت البيانات أثناء الاستيراد. أعد المعاينة ثم حاول مرة أخرى.",
+    # --- customers and sales ---
+    "The amount must not be zero": "المبلغ لا يمكن أن يكون صفرًا.",
     # --- framework-level ---
     "Request validation failed": "بعض البيانات المُدخلة غير صالحة. راجعها ثم حاول مرة أخرى.",
     "Internal server error": "حدث خطأ غير متوقع. حاول مرة أخرى بعد قليل.",
